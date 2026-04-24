@@ -21,7 +21,6 @@ import VendorDashboard from "./pages/dashboard/VendorDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import DonationCheckout from "./pages/donation/DonationCheckout";
 import CreateDonation from "./pages/donation/CreateDonation";
-import MockPaymentModal from "./pages/donation/MockPaymentModal";
 import DonationSuccess from "./pages/donation/DonationSuccess";
 import { useAuth } from "./contexts/AuthContext";
 import ScrollToTop from "./components/ScrollToTop";
@@ -319,14 +318,6 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["donor", "admin", "beneficiary", "vendor"]}>
               <CreateDonation />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/donation/payment/:donationId"
-          element={
-            <ProtectedRoute allowedRoles={["donor", "admin"]}>
-              <MockPaymentModal />
             </ProtectedRoute>
           }
         />

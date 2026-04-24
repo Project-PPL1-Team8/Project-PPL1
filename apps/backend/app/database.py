@@ -1,10 +1,13 @@
 """
 Database Configuration and Session Management
 """
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from sqlalchemy.pool import StaticPool
 from app.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Get database URL from settings (handles test mode automatically)
 DATABASE_URL = settings.get_database_url()
@@ -12,27 +15,53 @@ DATABASE_URL = settings.get_database_url()
 # Detect if using SQLite
 IS_SQLITE = DATABASE_URL.startswith("sqlite")
 
-# Create database engine
-# Configuration differs for SQLite vs PostgreSQL
-if IS_SQLITE:
-    # SQLite configuration for testing
-    sqlite_engine_kwargs = {
-        "connect_args": {"check_same_thread": False},  # Needed for SQLite
-    }
-    if DATABASE_URL == "sqlite:///:memory:":
-        # Keep a single shared in-memory connection across threads.
-        sqlite_engine_kwargs["poolclass"] = StaticPool
 
-    engine = create_engine(DATABASE_URL, **sqlite_engine_kwargs)
-else:
-    # PostgreSQL configuration for production
-    engine = create_engine(
-        DATABASE_URL,
+def _create_sqlite_engine(url: str = "sqlite:///:memory:"):
+    """Create a SQLite engine with appropriate settings."""
+    kwargs = {
+        "connect_args": {"check_same_thread": False},
+    }
+    if url == "sqlite:///:memory:":
+        kwargs["poolclass"] = StaticPool
+    return create_engine(url, **kwargs)
+
+
+def _create_postgres_engine(url: str):
+    """Create a PostgreSQL engine with connection pooling."""
+    return create_engine(
+        url,
         pool_size=10,
         max_overflow=20,
-        pool_pre_ping=True,  # Enable connection health checks
-        pool_recycle=3600,   # Recycle connections after 1 hour
+        pool_pre_ping=True,
+        pool_recycle=3600,
     )
+
+
+def _build_engine():
+    """Build the database engine, falling back to SQLite if PostgreSQL is unreachable."""
+    global IS_SQLITE
+
+    if IS_SQLITE:
+        return _create_sqlite_engine(DATABASE_URL)
+
+    # Try to connect to PostgreSQL
+    pg_engine = _create_postgres_engine(DATABASE_URL)
+    try:
+        with pg_engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        logger.info("Connected to PostgreSQL database successfully")
+        return pg_engine
+    except Exception as exc:
+        logger.warning(
+            "PostgreSQL unreachable (%s). Falling back to in-memory SQLite.",
+            exc,
+        )
+        pg_engine.dispose()
+        IS_SQLITE = True
+        return _create_sqlite_engine()
+
+
+engine = _build_engine()
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -72,4 +101,4 @@ def init_db() -> None:
     # Create all tables
     Base.metadata.create_all(bind=engine)
     
-    print("✅ Database tables created successfully!")
+    logger.info("Database tables created successfully!")

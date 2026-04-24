@@ -47,7 +47,11 @@ def _has_supabase_auth_config() -> bool:
 
 def is_dev_mode() -> bool:
     # Check whether auth should use local mock mode.
-    return os.getenv("DEV_MODE", "false").lower() == "true" or not _has_supabase_auth_config()
+    # First check OS environment variable, then pydantic settings (from .env)
+    dev_env = os.getenv("DEV_MODE", "").lower()
+    if dev_env == "true":
+        return True
+    return settings.DEV_MODE or not _has_supabase_auth_config()
 
 
 def _mock_dev_user() -> AuthenticatedUser:

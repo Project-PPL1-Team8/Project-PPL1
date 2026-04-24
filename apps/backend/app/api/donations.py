@@ -19,9 +19,11 @@ from app.schemas.donation import (
     DonationQueryParams,
     DonationTypeEnum,
     DonationStatusEnum,
-    DashboardMetrics
+    DashboardMetrics,
+    PaymentResponse
 )
 from app.models.donation import Donation
+from app.services.midtrans_service import MidtransService
 import logging
 
 logger = logging.getLogger(__name__)
@@ -61,6 +63,25 @@ async def create_donation(
     
     logger.info(f"[DONATION] Created donation {donation.id}, type={donation_data.type}, is_subscription={donation_data.is_subscription}, plan_id={donation_data.plan_id}")
     
+    # Create Midtrans transaction
+    donor_name = donor_profile.user_profile.full_name if donor_profile.user_profile else "Donor"
+    try:
+        midtrans_tx = MidtransService.create_transaction(
+            donation=donation,
+            donor_email=current_user.email,
+            donor_name=donor_name
+        )
+        # We can append midtrans data to response or use a different model
+        # For now, let's just log it. The client will need the snap token.
+        logger.info(f"[DONATION] Midtrans transaction created: {midtrans_tx}")
+        # To return the snap token, we would typically modify DonationResponse to include it.
+        # Since we use ConfigDict(from_attributes=True), we can attach it directly to the donation object before returning,
+        # or we could change the response model. Let's just attach it as midtrans_token attribute temporarily if the schema allows,
+        # but DonationResponse doesn't have snap_token. We'll return it in a custom way or rely on the frontend fetching it.
+        # For full compatibility, we'll return a custom response if needed, but for now we'll stick to DonationResponse.
+    except Exception as e:
+        logger.error(f"[DONATION] Failed to create Midtrans transaction: {e}")
+    
     # If this is a subscription donation, create subscription record
     if donation_data.is_subscription and donation_data.type == "subscription":
         logger.info(f"[DONATION] Creating subscription for donation {donation.id}")
@@ -83,7 +104,52 @@ async def create_donation(
     
     logger.info(f"[DONATION] Donation created: {donation.id} by user {current_user.user_id}")
     
+    # We return the dictionary with extra midtrans info if needed, but since response_model=DonationResponse, 
+    # it will filter out extra fields. We need to override the response type if we want to return the token directly.
+    # We will let the frontend call a separate endpoint for the snap token if they want, or we can change the response model.
+    # To keep schema compatibility, we will change response_model to PaymentResponse or similar if appropriate, but here we just return donation.
+    
     return donation
+
+@router.post("/webhook/midtrans")
+async def midtrans_webhook(
+    notification: dict,
+    db: Session = Depends(get_db)
+):
+    """Webhook for Midtrans notifications"""
+    try:
+        result = MidtransService.handle_notification(db, notification)
+        return result
+    except Exception as e:
+        logger.error(f"Midtrans webhook error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{donation_id}/payment-link", response_model=PaymentResponse)
+async def get_payment_link(
+    donation_id: str,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user)
+):
+    """Get Midtrans Snap Token for a donation"""
+    donation = DonationService.get_donation_by_id(db, donation_id, current_user.user_id)
+    if not donation:
+        raise HTTPException(status_code=404, detail="Donation not found")
+        
+    from app.models.user import DonorProfile
+    donor_profile = db.query(DonorProfile).filter(DonorProfile.user_id == current_user.user_id).first()
+    donor_name = donor_profile.user_profile.full_name if donor_profile and donor_profile.user_profile else "Donor"
+    
+    try:
+        tx = MidtransService.create_transaction(donation, current_user.email, donor_name)
+        return PaymentResponse(
+            donation_id=str(donation.id),
+            snap_token=tx.get("token"),
+            redirect_url=tx.get("redirect_url"),
+            payment_status=donation.status.value,
+            message="Payment link generated"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate payment link: {str(e)}")
 
 
 @router.get("/", response_model=DonationListResponse)
@@ -285,104 +351,6 @@ async def download_donation_receipt(
     })
 
 
-@router.post("/{donation_id}/simulate-payment")
-async def simulate_payment(
-    donation_id: str,
-    db: Session = Depends(get_db),
-    current_user: AuthenticatedUser = Depends(get_current_user)
-):
-    """
-    Simulate successful payment (DEMO ONLY).
-    In production, this will be replaced by Midtrans webhook.
-    """
-    print(f"[SIMULATE_PAYMENT] Called with donation_id: {donation_id}, user: {current_user.user_id}")
-    logger.info(f"[SIMULATE_PAYMENT] Called with donation_id: {donation_id}, user: {current_user.user_id}")
-    
-    # Verify donation exists and belongs to current user
-    from app.models.donation import Donation
-    from uuid import UUID
-    
-    try:
-        # Convert string ID to UUID
-        donation_uuid = UUID(str(donation_id))
-        logger.info(f"[SIMULATE_PAYMENT] Converted to UUID: {donation_uuid}")
-    except Exception as e:
-        logger.error(f"[SIMULATE_PAYMENT] Invalid UUID format: {donation_id}, error: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Invalid donation ID format: {donation_id}")
-    
-    donation = db.query(Donation).filter(Donation.id == donation_uuid).first()
-    if not donation:
-        logger.error(f"[SIMULATE_PAYMENT] Donation {donation_id} not found")
-        raise HTTPException(status_code=404, detail="Donation not found")
-    
-    if str(donation.donor_id) != str(current_user.user_id):
-        logger.error(f"[SIMULATE_PAYMENT] Permission denied. Donation donor: {donation.donor_id}, Current user: {current_user.user_id}")
-        raise HTTPException(status_code=403, detail="Not authorized to simulate payment for this donation")
-    
-    logger.info(f"[SIMULATE_PAYMENT] Donation found. Status: {donation.status}, Donor: {donation.donor_id}")
-    
-    try:
-        from app.services.mock_payment_service import MockPaymentService
-        from uuid import UUID
-        from decimal import Decimal
-        
-        print("[SIMULATE_PAYMENT] Calling mock_payment_service...")
-        result = MockPaymentService.simulate_payment_success(
-            db=db,
-            donation_id=donation_id
-        )
-        
-        print(f"[SIMULATE_PAYMENT] Service returned result: {result}")
-        logger.info(f"[SIMULATE_PAYMENT] Service returned result: {result}")
-        
-        # Convert UUID and Decimal to serializable types
-        print("[SIMULATE_PAYMENT] Serializing result...")
-        serializable_result = {}
-        for key, value in result.items():
-            print(f"[SIMULATE_PAYMENT] Processing key: {key}, type: {type(value)}")
-            if isinstance(value, UUID):
-                serializable_result[key] = str(value)
-            elif isinstance(value, Decimal):
-                serializable_result[key] = float(value)
-            elif isinstance(value, dict):
-                # Handle nested dict (impact)
-                print(f"[SIMULATE_PAYMENT] Processing nested dict for key: {key}")
-                def serialize_nested(val):
-                    if isinstance(val, Decimal):
-                        return float(val)
-                    elif isinstance(val, UUID):
-                        return str(val)
-                    elif isinstance(val, (int, float, str, bool)) or val is None:
-                        return val
-                    else:
-                        return str(val)
-                serializable_result[key] = {
-                    k: serialize_nested(v) for k, v in value.items()
-                }
-            else:
-                serializable_result[key] = value
-        
-        print(f"[SIMULATE_PAYMENT] Serialized result: {serializable_result}")
-        logger.info(f"[SIMULATE_PAYMENT] Serialized result: {serializable_result}")
-        return serializable_result
-        
-    except ValueError as e:
-        print(f"[SIMULATE_PAYMENT] ValueError: {e}")
-        logger.warning(f"[SIMULATE_PAYMENT] ValueError: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        import traceback
-        print(f"[SIMULATE_PAYMENT] Exception: {str(e)}")
-        print(traceback.format_exc())
-        error_detail = f"Payment simulation failed: {str(e)}\n{traceback.format_exc()}"
-        logger.error(f"[SIMULATE_PAYMENT] {error_detail}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to simulate payment: {str(e)}"
-        )
 
 
 @router.get("/{donation_id}", response_model=DonationWithImpact)

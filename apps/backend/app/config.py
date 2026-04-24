@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     SUPPORTED_BANKS: str = "BCA,MANDIRI,BRI,BNI,CIMB,OCBC,AMBANK"
     BANK_VALIDATION_ENABLED: bool = True
     
+    # Dev mode flag (enables mock auth for demo buttons)
+    DEV_MODE: bool = False
+    
     # Test mode flag
     TEST_MODE: bool = False
     

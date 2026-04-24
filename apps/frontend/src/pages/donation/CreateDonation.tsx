@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Heart, ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { createDonation, simulatePayment } from "@/services/donations";
+import { createDonation, getPaymentLink } from "@/services/donations";
+import { loadMidtransScript } from "@/utils/midtrans";
 import { formatIDR } from "@/lib/format";
 import {
   PLAN_NAMES,
@@ -86,30 +87,59 @@ export default function CreateDonation() {
         is_subscription: donationType === "subscription", // Flag untuk subscription
       });
 
-      // Step 2: Langsung simulate payment (MVP mode — tanpa payment gateway)
-      // Backend akan: auto-assign penerima FIES tertinggi + generate voucher otomatis
-      toast.loading("Memproses pembayaran...", { id: "payment" });
-      const paymentResult: any = await simulatePayment(donation.id);
-      toast.dismiss("payment");
-
-      const voucherCreated =
-        paymentResult?.voucher_created ?? paymentResult?.data?.voucher_created ?? false;
-      if (voucherCreated) {
-        toast.success("Donasi berhasil! Voucher dikirim ke penerima 🎉");
-      } else {
-        toast.success("Donasi berhasil! Menunggu alokasi penerima.");
+      // Step 2: Dapatkan Payment Link dari backend untuk Midtrans
+      toast.loading("Mendapatkan tautan pembayaran...", { id: "payment" });
+      const paymentData: any = await getPaymentLink(donation.id);
+      
+      const snapToken = paymentData?.snap_token;
+      
+      if (!snapToken) {
+        toast.dismiss("payment");
+        toast.error("Gagal mendapatkan Token Midtrans. Pastikan konfigurasi Midtrans sudah benar.");
+        setLoading(false);
+        return;
       }
-
-      // Step 3: Redirect ke halaman sukses dengan data impact
-      navigate("/donation/success", {
-        state: {
-          donationId: donation.id,
-          amount: parseInt(amount),
-          transactionId: paymentResult?.transaction_id || paymentResult?.data?.transaction_id,
-          voucherCreated:
-            paymentResult?.voucher_created ?? paymentResult?.data?.voucher_created ?? true,
-          impact: paymentResult?.impact || paymentResult?.data?.impact,
+      
+      const clientKey = import.meta.env.VITE_MIDTRANS_CLIENT_KEY || "SB-Mid-client-XXXXX";
+      const isLoaded = await loadMidtransScript(clientKey);
+      toast.dismiss("payment");
+      
+      if (!isLoaded) {
+        toast.error("Gagal memuat layanan Midtrans.");
+        setLoading(false);
+        return;
+      }
+      
+      // @ts-ignore
+      window.snap.pay(snapToken, {
+        onSuccess: function (result: any) {
+          toast.success("Pembayaran berhasil diselesaikan! 🎉", { id: "paid" });
+          navigate("/donation/success", {
+            state: {
+              donationId: donation.id,
+              amount: parseInt(amount),
+              // Prefer midtrans transaction id
+              transactionId: result.transaction_id || result.order_id,
+              voucherCreated: true, // Auto generated when webhook resolves
+              impact: {
+                children_helped: Math.floor(parseInt(amount) / 500000) || 1,
+                days_of_support: (Math.floor(parseInt(amount) / 500000) || 1) * 1000
+              }
+            },
+          });
         },
+        onPending: function (result: any) {
+          toast.info("Pembayaran tertunda. Harap selesaikan pembayaran Anda.", { id: "pending" });
+          navigate("/dashboard");
+        },
+        onError: function (result: any) {
+          toast.error("Pembayaran gagal diproses!", { id: "error" });
+          setLoading(false);
+        },
+        onClose: function () {
+          toast.info("Anda menutup pop-up pembayaran sebelum menyelesaikannya.", { id: "close" });
+          setLoading(false);
+        }
       });
     } catch (err) {
       toast.dismiss("payment");

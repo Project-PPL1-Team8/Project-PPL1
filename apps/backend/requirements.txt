@@ -34,3 +34,6 @@ reportlab==4.0.9
 # Authentication
 google-auth==2.26.2
 supabase
+
+# Payment Gateway
+midtransclient==1.4.2
