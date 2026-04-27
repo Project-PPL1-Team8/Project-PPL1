@@ -235,14 +235,14 @@ class DonationService:
         # REAL MONTHLY STATS (not mocked)
         # ============================================
         from datetime import date
-        from app.models.donation import Voucher
         
         today = date.today()
         start_of_month = today.replace(day=1)
         
         # Vouchers redeemed this month (vouchers created this month)
-        vouchers_redeemed = db.query(func.count(Voucher.id)).join(
-            Donation
+        vouchers_redeemed = db.query(func.count(Voucher.id)).select_from(Voucher).join(
+            Donation,
+            Voucher.donation_id == Donation.id
         ).filter(
             Donation.donor_id == donor_uuid,
             Donation.status == DonationStatusEnum.success,

@@ -3,12 +3,16 @@ Donation Tests
 Tests for donation service logic, schemas, and enums
 """
 from decimal import Decimal
-from datetime import datetime
+from datetime import date, datetime
 from uuid import uuid4
 
-from app.models.donation import DonationTypeEnum, DonationStatusEnum, VoucherStatusEnum
+from app.database import Base, SessionLocal, engine
+from app.models.donation import Donation, Voucher, DonationTypeEnum, DonationStatusEnum, VoucherStatusEnum
+from app.models.subscription import Subscription, SubscriptionStatusEnum
+from app.models.user import BeneficiaryProfile, DonorProfile, UserProfile
 from app.schemas.donation import PaymentMethodEnum
 from app.schemas.donation import DonationCreate, DonationResponse, DonationListResponse, ImpactMetrics
+from app.services.donation_service import DonationService
 
 
 def test_donation_status_enum():
@@ -170,3 +174,66 @@ def test_recommendation_engine_structure():
     assert "generated_at" in result
     assert "next_review_date" in result
     assert len(result["recommendations"]) > 0
+
+
+def test_dashboard_metrics_handles_real_voucher_joins():
+    """Dashboard metrics should work for successful donations with allocated vouchers."""
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+    db = SessionLocal()
+    try:
+        donor_id = uuid4()
+        beneficiary_id = uuid4()
+
+        db.add(UserProfile(user_id=donor_id, full_name="Donor"))
+        db.add(DonorProfile(user_id=donor_id, total_donated=0, children_sponsored=0, subscription_status="inactive"))
+        db.add(UserProfile(user_id=beneficiary_id, full_name="Penerima"))
+        db.add(BeneficiaryProfile(user_id=beneficiary_id, family_size=1, vouchers_balance=0, approval_status="approved"))
+        db.flush()
+
+        db.add(
+            Subscription(
+                donor_id=donor_id,
+                plan_name="Paket Bulanan",
+                amount=Decimal("50000"),
+                frequency="monthly",
+                status=SubscriptionStatusEnum.active,
+                payment_method="qris",
+                next_billing_date=date.today(),
+            )
+        )
+
+        donation = Donation(
+            donor_id=donor_id,
+            amount=Decimal("100000"),
+            type=DonationTypeEnum.one_time,
+            payment_method="qris",
+            status=DonationStatusEnum.success,
+        )
+        db.add(donation)
+        db.flush()
+
+        db.add(
+            Voucher(
+                code="VCR-001",
+                beneficiary_id=beneficiary_id,
+                donation_id=donation.id,
+                balance=Decimal("100000"),
+                allocated_date=datetime.utcnow(),
+                expiry_date=date.today(),
+                status=VoucherStatusEnum.active,
+            )
+        )
+        db.commit()
+
+        metrics = DonationService.get_dashboard_metrics(db, str(donor_id))
+
+        assert metrics["total_donated"] == Decimal("100000")
+        assert metrics["active_subscriptions"] == 1
+        assert metrics["children_helped"] == 1
+        assert metrics["conversion_rate"] == 100.0
+        assert metrics["monthly_stats"]["vouchers_redeemed"] == 1
+        assert metrics["monthly_stats"]["children_received_nutrition"] == 1
+    finally:
+        db.close()

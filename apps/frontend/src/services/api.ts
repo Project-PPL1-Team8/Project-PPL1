@@ -107,48 +107,32 @@ async function apiFetchWithRetry(
     ...(options.headers as Record<string, string>),
   };
 
-  // Attach development identity headers when available.
-  let devIdentity: StoredAuthUser = {};
-  try {
-    const rawStoredAuth = localStorage.getItem("nutriguard-auth");
-    if (rawStoredAuth) {
-      const storedAuth: StoredAuthUser = JSON.parse(rawStoredAuth);
-      devIdentity = {
-        id: storedAuth?.id,
-        email: storedAuth?.email,
-        role: isKnownDevRole(storedAuth?.role) ? storedAuth.role.trim().toLowerCase() : undefined,
-      };
-    }
-  } catch {
-    // Ignore malformed local auth cache.
-  }
-
-  if (!devIdentity.id) {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session?.user?.id) {
-        const metadataRole = session.user.user_metadata?.role;
-        devIdentity = {
-          id: session.user.id,
-          email: session.user.email || undefined,
-          role: isKnownDevRole(metadataRole) ? metadataRole.trim().toLowerCase() : undefined,
-        };
-      }
-    } catch {
-      // Ignore session lookup errors for dev identity fallback.
-    }
-  }
-
-  if (devIdentity.id) headers["X-Dev-User-Id"] = devIdentity.id;
-  if (devIdentity.email) headers["X-Dev-User-Email"] = devIdentity.email;
-  if (devIdentity.role) headers["X-Dev-User-Role"] = devIdentity.role;
-
   // Attach Supabase JWT as Bearer token if available.
   await initSessionToken();
   if (accessTokenCache) {
     headers["Authorization"] = `Bearer ${accessTokenCache}`;
+  } else {
+    // Attach development identity headers only for demo/local-storage auth.
+    let devIdentity: StoredAuthUser = {};
+    try {
+      const rawStoredAuth = localStorage.getItem("nutriguard-auth");
+      if (rawStoredAuth) {
+        const storedAuth: StoredAuthUser = JSON.parse(rawStoredAuth);
+        devIdentity = {
+          id: storedAuth?.id,
+          email: storedAuth?.email,
+          role: isKnownDevRole(storedAuth?.role)
+            ? storedAuth.role.trim().toLowerCase()
+            : undefined,
+        };
+      }
+    } catch {
+      // Ignore malformed local auth cache.
+    }
+
+    if (devIdentity.id) headers["X-Dev-User-Id"] = devIdentity.id;
+    if (devIdentity.email) headers["X-Dev-User-Email"] = devIdentity.email;
+    if (devIdentity.role) headers["X-Dev-User-Role"] = devIdentity.role;
   }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {

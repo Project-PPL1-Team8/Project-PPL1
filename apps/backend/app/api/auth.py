@@ -6,6 +6,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.middleware.auth import _decode_unverified_jwt_payload, is_dev_mode
 from app.schemas.auth import (
     GoogleTokenExchangeRequest,
     GoogleSyncRequest,
@@ -19,6 +20,40 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 security = HTTPBearer(auto_error=True)
+
+
+def _normalize_google_token_data(token_data: dict | None) -> dict | None:
+    if not isinstance(token_data, dict):
+        return None
+
+    user_metadata = token_data.get("user_metadata")
+    app_metadata = token_data.get("app_metadata")
+    identities = token_data.get("identities")
+
+    return {
+        "id": token_data.get("id") or token_data.get("sub") or token_data.get("user_id"),
+        "email": token_data.get("email"),
+        "user_metadata": user_metadata if isinstance(user_metadata, dict) else {},
+        "app_metadata": app_metadata if isinstance(app_metadata, dict) else {},
+        "identities": identities if isinstance(identities, list) else [],
+    }
+
+
+async def _resolve_google_sync_token_data(access_token: str) -> dict:
+    """Resolve Google session payload, with dev-mode fallback when backend Supabase auth is unavailable."""
+    try:
+        token_data = await supabase_auth.verify_token(access_token)
+        normalized = _normalize_google_token_data(token_data)
+        if normalized:
+            return normalized
+    except ValueError:
+        if is_dev_mode():
+            fallback_data = _normalize_google_token_data(_decode_unverified_jwt_payload(access_token))
+            if fallback_data:
+                return fallback_data
+        raise
+
+    raise ValueError("Supabase token does not contain user ID")
 
 
 def _build_google_response(
@@ -123,7 +158,7 @@ async def sync_google_profile(
 ):
 
     try:
-        token_data = await supabase_auth.verify_token(credentials.credentials)
+        token_data = await _resolve_google_sync_token_data(credentials.credentials)
 
         if not google_auth_service.is_google_user(token_data):
             raise HTTPException(

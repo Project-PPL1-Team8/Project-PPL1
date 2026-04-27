@@ -647,7 +647,7 @@ export default function Register() {
           {/* Submit Button */}
           <Button
             type="submit"
-            disabled={loading || !role || !passwordValid || password !== confirmPassword}
+            disabled={loading}
             style={{
               width: "100%",
               height: "44px",

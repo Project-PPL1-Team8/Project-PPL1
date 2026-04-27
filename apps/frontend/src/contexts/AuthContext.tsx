@@ -79,6 +79,15 @@ function isProfileRole(value: unknown): value is GoogleSignInRole {
   return typeof value === "string" && PROFILE_ROLES.has(value)
 }
 
+async function getSessionRoleFallback(): Promise<UserRole> {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const metadataRole = sessionData?.session?.user?.user_metadata?.role
+  if (isKnownRole(metadataRole)) {
+    return metadataRole
+  }
+  return resolveRoleFromEmail(sessionData?.session?.user?.email) || "donor"
+}
+
 function resolveProfileRoleForSession(currentSession: Session): GoogleSignInRole {
   const metadataRole = currentSession.user.user_metadata?.role
   if (isProfileRole(metadataRole)) return metadataRole
@@ -210,8 +219,7 @@ async function getUserRole(userId: string): Promise<UserRole> {
     
     if (!response.ok) {
       // Backend unavailable, fall back to email-based detection
-      const { data: sessionData } = await supabase.auth.getSession()
-      return resolveRoleFromEmail(sessionData?.session?.user?.email) || "donor"
+      return await getSessionRoleFallback()
     }
 
     const data = await response.json().catch(() => null)
@@ -220,13 +228,11 @@ async function getUserRole(userId: string): Promise<UserRole> {
       return roleCandidate
     }
 
-    const { data: sessionData } = await supabase.auth.getSession()
-    return resolveRoleFromEmail(sessionData?.session?.user?.email) || "donor"
+    return await getSessionRoleFallback()
   } catch {
     // Error fetching from backend, fall back to email-based detection
     try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      return resolveRoleFromEmail(sessionData?.session?.user?.email) || "donor"
+      return await getSessionRoleFallback()
     } catch {
       // Ignore fallback errors
     }
@@ -313,6 +319,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data: { session: currentSession } }: { data: { session: Session | null } }) => {
       setSession(currentSession)
       if (currentSession) {
+        localStorage.removeItem(AUTH_KEY)
         try {
           const authUser = await buildAuthUserFromSession(currentSession)
           setUser(authUser)
@@ -346,6 +353,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, newSession: Session | null) => {
       setSession(newSession)
       if (newSession) {
+        localStorage.removeItem(AUTH_KEY)
         void buildAuthUserFromSession(newSession)
           .then((authUser) => {
             setUser(authUser)
@@ -374,21 +382,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
+      localStorage.removeItem(AUTH_KEY)
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) return { error: error.message }
       if (data.session) {
         setSession(data.session)
-        const [role, profile] = await Promise.all([
-          getUserRole(data.session.user.id),
-          getUserProfile(data.session.user.id),
-        ])
-        setUser({
-          id: data.session.user.id,
-          email: data.session.user.email || "",
-          fullName: profile.fullName,
-          role,
-        })
-        setUserRole(role)
+        const authUser = await buildAuthUserFromSession(data.session)
+        setUser(authUser)
+        setUserRole(authUser.role)
       }
       return { error: null }
     } catch {
@@ -519,15 +520,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (session) {
         setSession(session)
-        // Get profile from backend or set defaults
-        const profile = await getUserProfile(session.user.id)
-        setUser({
-          id: session.user.id,
-          email: session.user.email || "",
-          fullName: profile.fullName,
-          role: (role as UserRole) || "donor",
-        })
-        setUserRole((role as UserRole) || "donor")
+        localStorage.removeItem(AUTH_KEY)
+        const authUser = await buildAuthUserFromSession(session)
+        setUser(authUser)
+        setUserRole(authUser.role)
         console.log("[SIGNUP] ✓ Registration complete and logged in")
       } else {
         // Fallback: set user data without session (will require manual login)
