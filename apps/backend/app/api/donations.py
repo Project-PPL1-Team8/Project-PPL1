@@ -351,6 +351,65 @@ async def download_donation_receipt(
     })
 
 
+@router.post("/{donation_id}/simulate-payment")
+async def simulate_payment(
+    donation_id: str,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user)
+):
+    """
+    Mark payment as successful and trigger real allocation logic.
+    Route name is kept for MVP compatibility with the current frontend flow.
+    """
+    logger.info(f"[SIMULATE_PAYMENT] Called with donation_id: {donation_id}, user: {current_user.user_id}")
+    
+    # Verify donation exists and belongs to current user
+    from app.models.donation import Donation
+    from uuid import UUID
+    
+    try:
+        # Convert string ID to UUID
+        donation_uuid = UUID(str(donation_id))
+        logger.info(f"[SIMULATE_PAYMENT] Converted to UUID: {donation_uuid}")
+    except Exception as e:
+        logger.error(f"[SIMULATE_PAYMENT] Invalid UUID format: {donation_id}, error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid donation ID format: {donation_id}")
+    
+    donation = db.query(Donation).filter(Donation.id == donation_uuid).first()
+    if not donation:
+        logger.error(f"[SIMULATE_PAYMENT] Donation {donation_id} not found")
+        raise HTTPException(status_code=404, detail="Donation not found")
+    
+    if str(donation.donor_id) != str(current_user.user_id):
+        logger.error(f"[SIMULATE_PAYMENT] Permission denied. Donation donor: {donation.donor_id}, Current user: {current_user.user_id}")
+        raise HTTPException(status_code=403, detail="Not authorized to simulate payment for this donation")
+    
+    logger.info(f"[SIMULATE_PAYMENT] Donation found. Status: {donation.status}, Donor: {donation.donor_id}")
+    
+    try:
+        from app.services.donation_allocation_service import DonationAllocationService
+
+        result = DonationAllocationService.process_successful_donation(
+            db=db,
+            donation_id=donation_id
+        )
+        logger.info(f"[SIMULATE_PAYMENT] Service returned result: {result}")
+        return result
+        
+    except ValueError as e:
+        logger.warning(f"[SIMULATE_PAYMENT] ValueError: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        import traceback
+        error_detail = f"Payment simulation failed: {str(e)}\n{traceback.format_exc()}"
+        logger.error(f"[SIMULATE_PAYMENT] {error_detail}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to simulate payment: {str(e)}"
+        )
 
 
 @router.get("/{donation_id}", response_model=DonationWithImpact)
@@ -373,6 +432,7 @@ async def get_donation(
         )
     
     recipient_name = None
+    children_helped = 0
     if donation.recipient_id:
         from app.models.user import BeneficiaryProfile
         beneficiary = db.query(BeneficiaryProfile).filter(
@@ -380,8 +440,24 @@ async def get_donation(
         ).first()
         if beneficiary:
             recipient_name = beneficiary.user_profile.full_name if beneficiary.user_profile else None
-    
-    children_helped = 1 if donation.recipient_id else 0
+            children_helped = 1
+    else:
+        from app.models.donation import Voucher
+        from app.models.user import BeneficiaryProfile
+
+        allocated_beneficiaries = (
+            db.query(BeneficiaryProfile)
+            .join(Voucher, Voucher.beneficiary_id == BeneficiaryProfile.user_id)
+            .filter(Voucher.donation_id == donation.id)
+            .all()
+        )
+        children_helped = len({str(profile.user_id) for profile in allocated_beneficiaries})
+        if children_helped == 1 and allocated_beneficiaries:
+            profile = allocated_beneficiaries[0].user_profile
+            recipient_name = profile.full_name if profile else None
+        elif children_helped > 1:
+            recipient_name = f"{children_helped} penerima teralokasi"
+
     months_of_support = 0
     if donation.subscription_config:
         months_of_support = donation.subscription_config.get("duration_months", 0)
