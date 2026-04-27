@@ -34,11 +34,14 @@ class ProductService:
         return category
 
     @staticmethod
-    def get_products(db: Session, params: ProductQueryParams) -> List[Product]:
-        query = db.query(Product).filter(
-            Product.is_active,
-            Product.approval_status == "approved"
-        )
+    def get_products(
+        db: Session,
+        params: ProductQueryParams,
+        include_unapproved: bool = False,
+    ) -> List[Product]:
+        query = db.query(Product).filter(Product.is_active)
+        if not include_unapproved:
+            query = query.filter(Product.approval_status == "approved")
 
         if params.category_id:
             query = query.filter(Product.category_id == params.category_id)
@@ -56,11 +59,14 @@ class ProductService:
         return query.order_by(Product.created_at.desc()).all()
 
     @staticmethod
-    def get_products_count(db: Session, params: ProductQueryParams) -> int:
-        query = db.query(Product).filter(
-            Product.is_active,
-            Product.approval_status == "approved"
-        )
+    def get_products_count(
+        db: Session,
+        params: ProductQueryParams,
+        include_unapproved: bool = False,
+    ) -> int:
+        query = db.query(Product).filter(Product.is_active)
+        if not include_unapproved:
+            query = query.filter(Product.approval_status == "approved")
 
         if params.category_id:
             query = query.filter(Product.category_id == params.category_id)
@@ -78,11 +84,18 @@ class ProductService:
         return query.count()
 
     @staticmethod
-    def get_product_by_id(db: Session, product_id: str) -> Optional[Product]:
-        return db.query(Product).filter(
+    def get_product_by_id(
+        db: Session,
+        product_id: str,
+        include_unapproved: bool = False,
+    ) -> Optional[Product]:
+        query = db.query(Product).filter(
             Product.id == product_id,
             Product.is_active
-        ).first()
+        )
+        if not include_unapproved:
+            query = query.filter(Product.approval_status == "approved")
+        return query.first()
 
     @staticmethod
     def create_product(db: Session, vendor_id: str, data: ProductCreate) -> Product:
@@ -95,7 +108,7 @@ class ProductService:
             voucher_price=data.voucher_price,
             stock_quantity=data.stock_quantity,
             unit=data.unit,
-            approval_status="approved",  # Auto-approve for demo (change to "pending" in production)
+            approval_status="pending",
         )
         db.add(product)
         db.commit()
@@ -118,8 +131,8 @@ class ProductService:
         for key, value in update_data.items():
             setattr(product, key, value)
 
-        # Note: In production, you might want to reset to "pending" on price/stock changes
-        # For demo, we keep it approved to avoid approval workflow
+        if update_data:
+            product.approval_status = "pending"
 
         db.commit()
         db.refresh(product)

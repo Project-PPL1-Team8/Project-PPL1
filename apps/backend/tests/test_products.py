@@ -80,8 +80,10 @@ def test_product_service_get_products():
 
     mock_db = MagicMock()
     mock_query = MagicMock()
-    mock_query.order_by.return_value.all.return_value = []
-    mock_db.query.return_value.filter.return_value.filter.return_value.filter.return_value.order_by.return_value = mock_query.order_by.return_value
+    mock_db.query.return_value = mock_query
+    mock_query.filter.return_value = mock_query
+    mock_query.order_by.return_value = mock_query
+    mock_query.all.return_value = []
 
     params = ProductQueryParams(search="test", in_stock_only=True)
     products = ProductService.get_products(mock_db, params)

@@ -128,7 +128,7 @@ async def create_user_on_signup(
                 user_id=user_data.user_id,
                 store_name=user_data.full_name,  # Use full_name as default store name
                 store_address="",
-                approval_status="approved"  # Auto-approve for demo (change to "pending" in production)
+                approval_status="pending"
             )
             db.add(vendor_profile)
             logger.info(f"[SIGNUP] vendor_profile added for user {user_data.user_id}")

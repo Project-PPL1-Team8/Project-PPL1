@@ -10,7 +10,7 @@ from uuid import UUID as _UUID
 
 from app.database import get_db
 from app.services.product_service import ProductService
-from app.middleware.auth import get_current_user, AuthenticatedUser, RequireRole
+from app.middleware.auth import get_current_user, AuthenticatedUser, RequireRole, OptionalAuth
 from app.schemas.product import (
     CategoryResponse,
     CategoryCreate,
@@ -54,6 +54,7 @@ async def list_products(
     max_price: Optional[str] = None,
     in_stock_only: bool = False,
     db: Session = Depends(get_db),
+    current_user: Optional[AuthenticatedUser] = Depends(OptionalAuth),
 ):
     """List products with filters"""
     params = ProductQueryParams(
@@ -67,8 +68,17 @@ async def list_products(
         in_stock_only=in_stock_only,
     )
 
-    products = ProductService.get_products(db, params)
-    total = ProductService.get_products_count(db, params)
+    include_unapproved = bool(
+        current_user
+        and current_user.role in ["vendor", "admin"]
+        and (
+            current_user.role == "admin"
+            or (params.vendor_id is not None and str(params.vendor_id) == str(current_user.user_id))
+        )
+    )
+
+    products = ProductService.get_products(db, params, include_unapproved=include_unapproved)
+    total = ProductService.get_products_count(db, params, include_unapproved=include_unapproved)
     total_pages = (total + page_size - 1) // page_size if total > 0 else 0
 
     items = []
@@ -84,11 +94,21 @@ async def list_products(
 
 
 @router.get("/{product_id}", response_model=ProductResponse)
-async def get_product(product_id: str, db: Session = Depends(get_db)):
+async def get_product(
+    product_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[AuthenticatedUser] = Depends(OptionalAuth),
+):
     """Get product by ID"""
-    product = ProductService.get_product_by_id(db, product_id)
+    include_unapproved = bool(current_user and current_user.role in ["vendor", "admin"])
+    product = ProductService.get_product_by_id(db, product_id, include_unapproved=include_unapproved)
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+    if product.approval_status != "approved":
+        is_admin = bool(current_user and current_user.role == "admin")
+        is_owner = bool(current_user and str(current_user.user_id) == str(product.vendor_id))
+        if not (is_admin or is_owner):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
     p_dict = ProductResponse.model_validate(product).model_dump()
     if product.category:
