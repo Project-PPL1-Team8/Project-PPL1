@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   Heart,
   Wallet,
+  Users,
   Store,
   Shield,
   LayoutDashboard,
@@ -61,6 +62,13 @@ const navByRole: Record<string, NavItem[]> = {
   ],
   admin: [
     { label: "Dashboard Admin", href: "/dashboard/admin", icon: LayoutDashboard },
+    { label: "Kelola Pengguna", href: "/dashboard/admin/users", icon: Users },
+    { label: "Kelola Produk", href: "/dashboard/admin/products", icon: Package },
+    { label: "Kelayakan Penerima", href: "/dashboard/admin/beneficiaries", icon: ClipboardList },
+    { label: "Kelola Donasi", href: "/dashboard/admin/donations", icon: Heart },
+    { label: "Kelola Pesanan", href: "/dashboard/admin/orders", icon: ShoppingCart },
+    { label: "Kelola Voucher", href: "/dashboard/admin/vouchers", icon: Wallet },
+    { label: "Laporan & Ekspor", href: "/dashboard/admin/reports", icon: TrendingUp },
     { label: "Profil", href: "/dashboard/profile", icon: Settings },
   ],
 };

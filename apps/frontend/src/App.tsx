@@ -19,6 +19,13 @@ import DonorRiwayat from "./pages/dashboard/DonorRiwayat";
 import Profile from "./pages/dashboard/Profile";
 import VendorDashboard from "./pages/dashboard/VendorDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
+import AdminUsersPage from "./pages/dashboard/admin/AdminUsersPage";
+import AdminProductsPage from "./pages/dashboard/admin/AdminProductsPage";
+import AdminBeneficiariesPage from "./pages/dashboard/admin/AdminBeneficiariesPage";
+import AdminDonationsPage from "./pages/dashboard/admin/AdminDonationsPage";
+import AdminOrdersPage from "./pages/dashboard/admin/AdminOrdersPage";
+import AdminVouchersPage from "./pages/dashboard/admin/AdminVouchersPage";
+import AdminReportsPage from "./pages/dashboard/admin/AdminReportsPage";
 import DonationCheckout from "./pages/donation/DonationCheckout";
 import CreateDonation from "./pages/donation/CreateDonation";
 import DonationSuccess from "./pages/donation/DonationSuccess";
@@ -235,6 +242,62 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["admin"]}>
               <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/admin/users"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <AdminUsersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/admin/products"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <AdminProductsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/admin/beneficiaries"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <AdminBeneficiariesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/admin/donations"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <AdminDonationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/admin/orders"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <AdminOrdersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/admin/vouchers"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <AdminVouchersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/admin/reports"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <AdminReportsPage />
             </ProtectedRoute>
           }
         />
