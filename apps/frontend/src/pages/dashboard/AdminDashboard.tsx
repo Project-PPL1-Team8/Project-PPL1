@@ -14,6 +14,8 @@ import {
   TrendingUp,
   Store,
   Shield,
+  Package,
+  ClipboardList,
   ChevronRight,
   Activity,
 } from "lucide-react";
