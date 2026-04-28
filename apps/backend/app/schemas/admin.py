@@ -114,6 +114,27 @@ class AdminUserApprovalListResponse(BaseModel):
     total_pages: int
 
 
+class AdminUserItem(BaseModel):
+    user_id: UUID
+    full_name: str
+    role: Literal["user", "beneficiary", "donor", "vendor"]
+    approval_status: str
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=False)
+
+
+class AdminUserListResponse(BaseModel):
+    items: list[AdminUserItem]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
 class AdminProductReviewItem(BaseModel):
     id: UUID
     vendor_id: UUID

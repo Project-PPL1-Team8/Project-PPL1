@@ -12,7 +12,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
@@ -29,6 +29,8 @@ from app.schemas.admin import (
     AdminProductReviewItem,
     AdminProductReviewListResponse,
     AdminStatsResponse,
+    AdminUserItem,
+    AdminUserListResponse,
     AdminUserApprovalItem,
     AdminUserApprovalListResponse,
     ApprovalUpdateRequest,
@@ -144,6 +146,23 @@ def _build_vendor_approval_item(
         updated_at=user_profile.updated_at,
         store_name=profile.store_name,
         store_address=profile.store_address,
+    )
+
+
+def _build_admin_user_item(
+    user_profile: UserProfile,
+    role: str,
+    approval_status: str,
+) -> AdminUserItem:
+    return AdminUserItem(
+        user_id=user_profile.user_id,
+        full_name=user_profile.full_name,
+        role=role,
+        approval_status=approval_status,
+        phone=user_profile.phone,
+        address=user_profile.address,
+        created_at=user_profile.created_at,
+        updated_at=user_profile.updated_at,
     )
 
 
@@ -306,6 +325,84 @@ async def get_admin_stats(
             "refunded_count": refunded_count,
             "unallocated_success_count": unallocated_success_count,
         },
+    )
+
+
+@router.get("/users", response_model=AdminUserListResponse)
+async def list_admin_users(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    role: Optional[str] = Query(None, description="user, beneficiary, donor, or vendor"),
+    approval_status: Optional[str] = Query(None, alias="status"),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(RequireRole(["admin"])),
+):
+    """List all user profiles for admin with role and approval filters."""
+    normalized_role = _normalize_status(role)
+    normalized_status = _normalize_status(approval_status)
+    if normalized_role not in {None, "user", "beneficiary", "donor", "vendor"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid role filter")
+    if normalized_status not in {None, "pending", "approved", "rejected"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status filter")
+
+    search_term = search.strip().lower() if search else None
+    rows: list[AdminUserItem] = []
+
+    base_query = db.query(UserProfile).filter(UserProfile.is_active)
+
+    if search_term:
+        base_query = base_query.filter(
+            or_(
+                UserProfile.full_name.ilike(f"%{search_term}%"),
+                UserProfile.phone.ilike(f"%{search_term}%"),
+                UserProfile.address.ilike(f"%{search_term}%"),
+            )
+        )
+
+    user_profiles = (
+        base_query
+        .options(
+            selectinload(UserProfile.donor_profile),
+            selectinload(UserProfile.beneficiary_profile),
+            selectinload(UserProfile.vendor_profile),
+        )
+        .order_by(UserProfile.created_at.desc())
+        .all()
+    )
+
+    for user_profile in user_profiles:
+        role_value: Optional[str] = None
+        approval_status_value: Optional[str] = None
+
+        if user_profile.donor_profile:
+            role_value = "donor"
+            approval_status_value = "approved"
+        elif user_profile.beneficiary_profile:
+            role_value = "beneficiary"
+            approval_status_value = user_profile.beneficiary_profile.approval_status or "pending"
+        elif user_profile.vendor_profile:
+            role_value = "vendor"
+            approval_status_value = user_profile.vendor_profile.approval_status or "pending"
+        else:
+            role_value = "user"
+            approval_status_value = "approved"
+
+        if normalized_role and role_value != normalized_role:
+            continue
+        if normalized_status and approval_status_value != normalized_status:
+            continue
+
+        rows.append(_build_admin_user_item(user_profile, role_value, approval_status_value))
+
+    total = len(rows)
+    paged_items, total = _paginate(rows, page, page_size)
+    return AdminUserListResponse(
+        items=paged_items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=_total_pages(total, page_size),
     )
 
 
