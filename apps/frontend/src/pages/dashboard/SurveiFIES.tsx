@@ -49,12 +49,12 @@ const getSeverity = (s: number) => {
   }
 
   if (s <= 5) {
-    return {
-      label: "Ketahanan Pangan Sedang",
-      color: "bg-accent/10 text-accent-foreground border-accent/20",
-      desc: "Ada indikasi kerawanan pangan sedang. Anda akan mendapat prioritas bantuan.",
-    };
-  }
+  return {
+    label: "Ketahanan Pangan Sedang",
+    badgeClass: "border-orange-300 bg-orange-100 text-orange-700",
+    desc: "Ada indikasi kerawanan pangan sedang. Anda akan mendapat prioritas bantuan.",
+  };
+}
 
   return {
     label: "Ketahanan Pangan Buruk",
@@ -163,97 +163,133 @@ const SurveiFIES = () => {
 
   // — Completed —
   if (completed) {
-    const severity = getSeverity(score);
+  const severity = getSeverity(score);
 
-    return (
-      <DashboardLayout
-        title="Survei FIES"
-        subtitle="Survei ketahanan pangan bulanan."
-      >
-        <div className="w-full max-w-none pb-3">
-          <Card className="overflow-hidden rounded-[18px] border-border/70 shadow-[0_6px_18px_rgba(15,23,42,0.045)]">
-            <CardContent className="p-0">
-              <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.72fr)]">
-                <div className="relative overflow-hidden bg-gradient-to-br from-primary via-emerald-700 to-emerald-900 p-4 text-primary-foreground sm:p-5 lg:p-6">
-                  <div className="absolute -right-14 -top-14 h-40 w-40 rounded-full bg-white/10 sm:h-52 sm:w-52" />
-                  <div className="absolute -bottom-16 -left-16 h-44 w-44 rounded-full bg-black/10 sm:h-56 sm:w-56" />
+  return (
+    <DashboardLayout
+      title="Survei FIES"
+      subtitle="Survei ketahanan pangan bulanan."
+    >
+      <div className="mx-auto w-full max-w-[1180px] space-y-4 pb-4">
+        {/* MAIN RESULT CARD */}
+        <Card className="overflow-hidden rounded-[20px] border border-border/70 shadow-[0_6px_18px_rgba(15,23,42,0.045)]">
+          <CardContent className="p-0">
+            <div className="grid gap-0 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.75fr)]">
+              {/* LEFT */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-primary via-emerald-700 to-emerald-900 px-6 py-6 text-primary-foreground sm:px-7 sm:py-7 lg:px-8 lg:py-8">
+                <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-white/10 sm:h-44 sm:w-44" />
+                <div className="absolute -bottom-14 -left-14 h-36 w-36 rounded-full bg-black/10 sm:h-44 sm:w-44" />
 
-                  <div className="relative flex min-h-[200px] flex-col justify-between gap-5 sm:min-h-[220px]">
-                    <div className="space-y-4">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-primary shadow-lg sm:h-12 sm:w-12">
-                        <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6" />
-                      </div>
+                <div className="relative flex min-h-[230px] flex-col justify-center">
+                  <div className="max-w-[500px] space-y-4">
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/70">
+                        Hasil Survei Bulanan
+                      </p>
 
-                      <div className="space-y-1.5">
-                        <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                          Survei Selesai!
-                        </h2>
+                      <h2 className="text-[28px] font-bold leading-tight tracking-tight text-white sm:text-[32px]">
+                        Survei Selesai!
+                      </h2>
 
-                        <p className="max-w-md text-sm leading-6 text-white/85">
-                          Terima kasih telah mengisi survei ketahanan pangan bulan ini.
-                        </p>
-                      </div>
+                      <p className="max-w-[460px] text-[15px] leading-7 text-white/90">
+                        Terima kasih telah mengisi survei ketahanan pangan bulan ini.
+                        Hasil Anda akan digunakan untuk membantu menentukan prioritas bantuan.
+                      </p>
                     </div>
 
-                    <Button
-                      className="h-10 w-full rounded-xl bg-white px-4 text-sm font-semibold text-primary hover:bg-white/90 sm:w-fit"
-                      onClick={() => navigate("/dashboard/beneficiary")}
-                    >
-                      Kembali ke Dashboard
-                      <ChevronRight className="ml-2 h-4 w-4" />
-                    </Button>
+                    <div className="pt-1">
+                      <Button
+                        className="h-11 rounded-2xl bg-white px-5 text-sm font-semibold text-primary hover:bg-white/90"
+                        onClick={() => navigate("/dashboard/beneficiary")}
+                      >
+                        Kembali ke Dashboard
+                        <ChevronRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="p-4 sm:p-5 lg:p-6">
-                  <div className="rounded-[18px] border border-border/70 bg-secondary/20 p-4">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Skor FIES Anda
-                    </p>
+              {/* RIGHT */}
+              <div className="bg-background p-5 sm:p-6 lg:p-7">
+                <div className="rounded-[20px] border border-border/70 bg-secondary/15 p-5">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Skor FIES Anda
+                  </p>
 
-                    <div className="mt-2.5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                      <div className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-                        {score}
-                        <span className="text-xl text-muted-foreground sm:text-2xl">
-                          {" "}
+                  <div className="mt-4 flex flex-col gap-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-end gap-2">
+                        <span className="text-[52px] font-bold leading-none tracking-tight text-foreground sm:text-[56px]">
+                          {score}
+                        </span>
+                        <span className="pb-1 text-[24px] font-semibold text-muted-foreground">
                           / 8
                         </span>
                       </div>
 
                       <Badge
-                        className={`w-fit rounded-full px-3 py-1 text-[11px] ${severity.color}`}
+                        className={`w-fit rounded-full border px-4 py-2 text-xs font-semibold ${severity.badgeClass}`}
                       >
                         {severity.label}
                       </Badge>
                     </div>
 
-                    <p className="mt-3 text-xs leading-5 text-muted-foreground sm:text-sm">
+                    <p className="text-[15px] leading-7 text-muted-foreground">
                       {severity.desc}
                     </p>
                   </div>
-
-                  {score > 5 && (
-                    <div className="mt-3 flex items-start gap-3 rounded-[18px] border border-accent/30 bg-accent/5 p-3.5">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent" />
-                      <div>
-                        <div className="text-sm font-semibold text-foreground">
-                          Bantuan Diprioritaskan
-                        </div>
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                          Berdasarkan skor FIES Anda, alokasi voucher nutrisi akan
-                          diprioritaskan untuk keluarga Anda.
-                        </p>
-                      </div>
-                    </div>
-                  )}
                 </div>
+
+                {score > 5 && (
+                  <div className="mt-4 flex items-start gap-3 rounded-[18px] border border-amber-200 bg-amber-50 p-4">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">
+                        Bantuan Diprioritaskan
+                      </div>
+                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                        Berdasarkan skor FIES Anda, alokasi voucher nutrisi akan
+                        diprioritaskan untuk keluarga Anda.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      </DashboardLayout>
-    );
-  }
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* SMALL FOLLOW-UP CARD -> supaya area bawah gak kosong */}
+        <Card className="rounded-[20px] border border-border/70 shadow-[0_6px_18px_rgba(15,23,42,0.045)]">
+          <CardContent className="p-5 sm:p-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-[16px] border border-border/70 bg-secondary/20 p-4">
+                <p className="text-sm font-semibold text-foreground">
+                  Apa yang terjadi setelah ini?
+                </p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Hasil survei Anda akan diproses untuk membantu penentuan kondisi
+                  ketahanan pangan dan prioritas bantuan.
+                </p>
+              </div>
+
+              <div className="rounded-[16px] border border-border/70 bg-secondary/20 p-4">
+                <p className="text-sm font-semibold text-foreground">
+                  Pengingat
+                </p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Survei FIES diisi secara berkala setiap bulan agar data bantuan
+                  tetap akurat dan kondisi keluarga Anda bisa terus dipantau.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardLayout>
+  );
+}
 
   // — Start screen —
   if (!started) {

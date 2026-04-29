@@ -112,6 +112,26 @@ function SummaryCard({
   );
 }
 
+const getFiesLabel = (classification?: string | null) => {
+  if (!classification) return "Belum Ada";
+
+  const normalized = classification.toLowerCase();
+
+  if (normalized === "low" || normalized === "mild" || normalized === "food_secure") {
+    return "Baik";
+  }
+
+  if (normalized === "moderate" || normalized === "medium") {
+    return "Sedang";
+  }
+
+  if (normalized === "severe" || normalized === "high") {
+    return "Buruk";
+  }
+
+  return classification;
+};
+
 export default function BeneficiaryDashboard() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -292,7 +312,7 @@ export default function BeneficiaryDashboard() {
     },
     {
       number: 3,
-      label: "Checkout",
+      label: "Pembayaran",
       desc: "Bayar dengan voucher",
       icon: Ticket,
       iconWrapClass: "bg-purple-100",
@@ -308,13 +328,25 @@ export default function BeneficiaryDashboard() {
     },
   ];
 
+  const getNutritionLabel = (classification?: string | null) => {
+    if (!classification) return "Normal";
+
+    const normalized = classification.toLowerCase();
+
+    if (normalized === "normal") return "Normal";
+    if (normalized === "moderate_malnourished") return "Kurang Gizi";
+    if (normalized === "severe_malnourished") return "Gizi Buruk";
+
+    return classification.charAt(0).toUpperCase() + classification.slice(1);
+  };
+
   const userDisplayName =
     user?.user_metadata?.full_name?.split(" ")[0] ||
     user?.email?.split("@")[0] ||
     "Penerima";
 
-  const fiesValue = fiesStatus?.classification || "Belum Ada";
-  const nutritionValue = nutritionData?.classification || "Normal";
+  const fiesValue = getFiesLabel(fiesStatus?.classification);
+  const nutritionValue = getNutritionLabel(nutritionData?.classification);
 
   const nutritionZScore =
     typeof nutritionData?.z_score_weight_height === "number"
@@ -442,7 +474,7 @@ export default function BeneficiaryDashboard() {
         </section>
 
         {/* Bottom Content */}
-        <div className="grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="grid gap-3 xl:grid-cols-[1.06fr_0.95fr]">
           {/* Shopping Flow */}
           <section className="rounded-[18px] border border-slate-200/80 bg-white px-4 py-4 shadow-[0_6px_18px_rgba(15,23,42,0.045)]">
             <h2 className="mb-3 text-sm font-bold tracking-tight text-slate-900 sm:text-base">
