@@ -34,7 +34,7 @@ type FilterKey = "all" | DonationStatus;
 const filterTabs: { key: FilterKey; label: string }[] = [
   { key: "all", label: "Semua" },
   { key: "success", label: "Sukses" },
-  { key: "pending", label: "Pending" },
+  { key: "pending", label: "Menunggu" },
   { key: "failed", label: "Gagal" },
 ];
 
@@ -220,7 +220,7 @@ const DonorRiwayat = () => {
               <p className="font-semibold text-foreground mb-1">Tidak ada donasi ditemukan</p>
               <p className="text-sm text-muted-foreground mb-5">
                 {search || statusFilter !== "all"
-                  ? "Coba ubah filter atau kata kunci"
+                  ? "Coba ubah kata kunci"
                   : "Mulai berdonasi untuk mendukung nutrisi anak"}
               </p>
               <Button
