@@ -359,15 +359,6 @@ const SurveiFIES = () => {
                         Mulai survei pertama Anda untuk membantu kami memahami kondisi ketahanan
                         pangan keluarga Anda.
                       </p>
-
-                      <Button
-                        variant="outline"
-                        className="mt-3 h-10 rounded-xl border-primary/30 text-primary hover:bg-primary/5 hover:text-primary"
-                        onClick={() => setStarted(true)}
-                      >
-                        Mulai Survei
-                        <ChevronRight className="ml-2 h-4 w-4" />
-                      </Button>
                     </div>
                   </div>
                 </div>

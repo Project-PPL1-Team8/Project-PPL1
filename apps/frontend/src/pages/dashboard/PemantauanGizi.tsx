@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,9 +22,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  ReferenceLine,
 } from "recharts";
 import {
   Activity, Plus, Baby, Loader2, Trash2, Pencil, Calendar,
@@ -89,7 +85,22 @@ const getClassCfg = (cl: string) =>
     border: "border-border", desc: "", icon: Activity,
   };
 
-// ── Child Selector Card ───────────────────────────────────────
+const getGenderLabel = (gender: string | null) => {
+  if (gender === "male") return "Laki-laki";
+  if (gender === "female") return "Perempuan";
+  return "-";
+};
+
+const getInitial = (name: string) => name?.trim()?.charAt(0)?.toUpperCase() || "A";
+
+const getLatestMeasurementFromList = (items: Measurement[] = []) =>
+  [...items].sort(
+    (a, b) =>
+      new Date(b.measurement_date).getTime() -
+      new Date(a.measurement_date).getTime()
+  )[0];
+
+// ── Child List Row ────────────────────────────────────────────
 function ChildCard({
   child,
   latestMeasurement,
@@ -105,73 +116,81 @@ function ChildCard({
   const StatusIcon = cfg?.icon ?? Baby;
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") onClick();
+      }}
       className={`
-        w-full text-left rounded-2xl border p-5 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5
+        group relative w-full cursor-pointer overflow-hidden rounded-2xl border text-left transition-all duration-200
         ${isSelected
-          ? "border-primary bg-primary/5 shadow-sm"
-          : "border-border bg-card hover:border-primary/40"
+          ? "border-green-300 bg-green-50/70 shadow-sm ring-1 ring-green-100"
+          : "border-border bg-background hover:border-green-200 hover:bg-green-50/30"
         }
       `}
     >
-      <div className="flex items-start gap-3">
-        {/* Avatar */}
-        <div
-          className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl ${
-            isSelected ? "bg-primary/10" : "bg-secondary"
-          }`}
-        >
-          <Baby className={`h-5 w-5 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
-        </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className={`font-bold text-sm leading-tight truncate ${isSelected ? "text-primary" : "text-foreground"}`}>
-            {child.full_name}
-          </div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            {child.age_months} bulan · {child.gender === "male" ? "Laki-laki" : child.gender === "female" ? "Perempuan" : "-"}
-          </div>
-        </div>
-
-        {/* Status badge */}
-        {cfg && (
-          <Badge
-            variant="outline"
-            className={`text-[10px] border flex-shrink-0 gap-0.5 ${cfg.bg} ${cfg.cls} ${cfg.border}`}
-          >
-            <StatusIcon className="h-2.5 w-2.5" />
-            {cfg.label}
-          </Badge>
-        )}
-      </div>
-
-      {/* Latest measurement mini stats */}
-      {latestMeasurement && (
-        <div className="mt-4 pt-3 border-t border-border/60 grid grid-cols-3 gap-3">
-          {[
-            { icon: Scale, label: "Berat", val: `${latestMeasurement.weight} kg` },
-            { icon: Ruler, label: "Tinggi", val: `${latestMeasurement.height} cm` },
-            { icon: Activity, label: "Z-Score", val: latestMeasurement.z_score_weight !== null ? latestMeasurement.z_score_weight.toString() : "-" },
-          ].map(({ icon: Icon, label, val }) => (
-            <div key={label} className="text-center">
-              <Icon className="h-3 w-3 text-muted-foreground mx-auto mb-0.5" />
-              <div className="text-sm font-bold text-foreground">{val}</div>
-              <div className="text-[10px] text-muted-foreground">{label}</div>
-            </div>
-          ))}
-        </div>
+      {isSelected && (
+        <span className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full bg-primary" />
       )}
-    </button>
+
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-4">
+        <div
+          className={`
+            flex h-10 w-10 items-center justify-center rounded-full border text-sm font-bold sm:h-12 sm:w-12
+            ${isSelected
+              ? "border-green-200 bg-green-100 text-green-800"
+              : "border-border bg-secondary text-muted-foreground"
+            }
+          `}
+        >
+          {getInitial(child.full_name)}
+        </div>
+
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="max-w-[150px] truncate text-sm font-bold text-foreground min-[420px]:max-w-none">{child.full_name}</p>
+            {cfg ? (
+              <Badge
+                variant="outline"
+                className={`h-6 gap-1 rounded-full border px-2 text-[10px] ${cfg.bg} ${cfg.cls} ${cfg.border}`}
+              >
+                <StatusIcon className="h-3 w-3" />
+                {cfg.label}
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className="h-6 rounded-full border-border bg-secondary px-2 text-[10px] text-muted-foreground"
+              >
+                Belum ada data
+              </Badge>
+            )}
+          </div>
+
+          <p className="mt-1 text-xs text-muted-foreground">
+            {child.age_months} bulan · {getGenderLabel(child.gender)}
+          </p>
+        </div>
+
+        <div className="col-span-2 mt-1 rounded-xl bg-background/70 px-3 py-2 sm:col-span-1 sm:mt-0 sm:min-w-[140px] sm:text-right">
+          <p className="text-[10px] font-medium text-muted-foreground">Pengukuran terakhir</p>
+          <p className={`mt-0.5 text-xs font-bold ${latestMeasurement ? "text-primary" : "text-muted-foreground"}`}>
+            {latestMeasurement
+              ? formatDate(latestMeasurement.measurement_date)
+              : "Belum ada data"}
+          </p>
+        </div>
+
+      </div>
+    </div>
   );
 }
 
 // ── Main Page ─────────────────────────────────────────────────
 const PemantauanGizi = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const gridRef = useStaggerChildren({ stagger: 0.1 });
 
   const [showForm, setShowForm] = useState(false);
@@ -181,6 +200,9 @@ const PemantauanGizi = () => {
   const [children, setChildren] = useState<ChildData[]>([]);
   const [selectedChild, setSelectedChild] = useState<ChildData | null>(null);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
+  const [latestMeasurementsByChild, setLatestMeasurementsByChild] = useState<
+    Record<string, Measurement | undefined>
+  >({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [chartPage, setChartPage] = useState(0);
@@ -200,20 +222,44 @@ const PemantauanGizi = () => {
   const [childFormGender, setChildFormGender] = useState<"male" | "female">("male");
   const [childFormErrors, setChildFormErrors] = useState<{ name?: string; dob?: string }>({});
 
+  const fetchLatestMeasurementsForChildren = useCallback(async (childList: ChildData[]) => {
+    if (childList.length === 0) {
+      setLatestMeasurementsByChild({});
+      return;
+    }
+
+    const entries = await Promise.all(
+      childList.map(async (child) => {
+        try {
+          const result = await getMeasurementHistory(child.id);
+          const latest = getLatestMeasurementFromList(result?.measurements || []);
+          return [child.id, latest] as const;
+        } catch {
+          return [child.id, undefined] as const;
+        }
+      })
+    );
+
+    setLatestMeasurementsByChild(Object.fromEntries(entries));
+  }, []);
+
   const fetchChildren = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getChildren();
       const childList = Array.isArray(data) ? data : [];
+
       setChildren(childList);
-      if (childList.length > 0 && !selectedChild) setSelectedChild(childList[0]);
+      setSelectedChild((current) => current ?? childList[0] ?? null);
+      await fetchLatestMeasurementsForChildren(childList);
     } catch (err: unknown) {
       toast.error("Gagal memuat data anak", { description: err instanceof Error ? err.message : undefined });
       setChildren([]);
+      setLatestMeasurementsByChild({});
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchLatestMeasurementsForChildren]);
 
   useEffect(() => { if (user) fetchChildren(); }, [user, fetchChildren]);
 
@@ -221,7 +267,14 @@ const PemantauanGizi = () => {
     try {
       setLoading(true);
       const result = await getMeasurementHistory(childId);
-      setMeasurements(result?.measurements || []);
+      const list = result?.measurements || [];
+      setMeasurements(
+        [...list].sort(
+          (a, b) =>
+            new Date(b.measurement_date).getTime() -
+            new Date(a.measurement_date).getTime()
+        )
+      );
     } catch (err: unknown) {
       toast.error("Gagal memuat data pengukuran", { description: err instanceof Error ? err.message : undefined });
       setMeasurements([]);
@@ -280,7 +333,8 @@ const PemantauanGizi = () => {
         toast.success("Data pengukuran berhasil disimpan");
       }
       resetForm(); setShowForm(false);
-      fetchMeasurements(selectedChild.id);
+      await fetchMeasurements(selectedChild.id);
+      await fetchLatestMeasurementsForChildren(children);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Gagal menyimpan data");
     } finally {
@@ -303,7 +357,8 @@ const PemantauanGizi = () => {
       await deleteMeasurement(deletingMeasurement.id);
       toast.success("Data pengukuran berhasil dihapus");
       setShowDeleteConfirm(false); setDeletingMeasurement(null);
-      if (selectedChild) fetchMeasurements(selectedChild.id);
+      if (selectedChild) await fetchMeasurements(selectedChild.id);
+      await fetchLatestMeasurementsForChildren(children);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Gagal menghapus data");
     }
@@ -322,7 +377,7 @@ const PemantauanGizi = () => {
       toast.success("Anak berhasil ditambahkan");
       setShowAddChild(false); setChildFormName(""); setChildFormDob("");
       setChildFormGender("male"); setChildFormErrors({});
-      fetchChildren();
+      await fetchChildren();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Gagal menambahkan anak");
     } finally {
@@ -348,11 +403,10 @@ const PemantauanGizi = () => {
     [paginatedMeasurements]
   );
 
-  const whoReferenceLines = [-3, -2, -1, 0, 1, 2, 3];
-
-  // Latest measurement for selected child
   const latestMeasurement = useMemo(() =>
-    measurements.filter((m) => selectedChild && m.child_id === selectedChild.id)[0],
+    getLatestMeasurementFromList(
+      measurements.filter((m) => selectedChild && m.child_id === selectedChild.id)
+    ),
     [measurements, selectedChild]
   );
 
@@ -363,35 +417,25 @@ const PemantauanGizi = () => {
   if (loading && children.length === 0) {
     return (
       <DashboardLayout title="Pemantauan Gizi" subtitle="Pantau tumbuh kembang dan status gizi anak Anda.">
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="h-6 w-40 bg-secondary rounded animate-pulse" />
+        <div className="mx-auto w-full max-w-[1600px] space-y-4 sm:space-y-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-2">
+              <div className="h-5 w-40 animate-pulse rounded bg-secondary" />
+              <div className="h-3 w-64 animate-pulse rounded bg-secondary" />
+            </div>
             <div className="flex gap-2">
-              <div className="h-9 w-32 bg-secondary rounded animate-pulse" />
-              <div className="h-9 w-36 bg-secondary rounded animate-pulse" />
+              <div className="h-9 w-32 animate-pulse rounded-xl bg-secondary" />
+              <div className="h-9 w-36 animate-pulse rounded-xl bg-secondary" />
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {[0, 1].map((i) => (
-              <div key={i} className="rounded-2xl border border-border bg-card p-5 animate-pulse space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="h-11 w-11 rounded-xl bg-secondary" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 w-28 bg-secondary rounded" />
-                    <div className="h-3 w-20 bg-secondary rounded" />
-                  </div>
-                  <div className="h-5 w-16 bg-secondary rounded-full" />
-                </div>
-                <div className="pt-3 border-t border-border/60 grid grid-cols-3 gap-3">
-                  {[0, 1, 2].map((j) => <div key={j} className="h-10 bg-secondary rounded" />)}
-                </div>
-              </div>
-            ))}
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.25fr)]">
+            <div className="h-64 animate-pulse rounded-3xl border bg-card" />
+            <div className="h-64 animate-pulse rounded-3xl border bg-card" />
           </div>
-          <div className="rounded-2xl border border-border bg-card p-6 animate-pulse">
-            <div className="h-5 w-48 bg-secondary rounded mb-4" />
-            <div className="h-56 bg-secondary rounded" />
-          </div>
+
+          <div className="h-36 animate-pulse rounded-3xl border bg-card" />
+          <div className="h-72 animate-pulse rounded-3xl border bg-card" />
         </div>
       </DashboardLayout>
     );
@@ -399,269 +443,402 @@ const PemantauanGizi = () => {
 
   return (
     <DashboardLayout title="Pemantauan Gizi" subtitle="Pantau tumbuh kembang dan status gizi anak Anda.">
-      <div className="space-y-6">
+      <div className="mx-auto w-full max-w-[1600px] space-y-4 sm:space-y-5">
 
-        {/* ── Header ── */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-foreground">Data Anak</h2>
-            <p className="text-xs text-muted-foreground">{children.length} anak terdaftar</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowAddChild(true)}>
-              <Baby className="h-3.5 w-3.5" /> Tambah Anak
+        {/* Top Actions */}
+        <div className="-mt-14 mb-4 flex justify-end max-md:mt-0 max-md:mb-3">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 w-full gap-2 rounded-xl px-4 font-semibold sm:w-auto"
+              onClick={() => setShowAddChild(true)}
+            >
+              <Plus className="h-4 w-4" />
+              Tambah Anak
             </Button>
-            <Button size="sm" className="gap-1.5" onClick={() => setShowForm(true)} disabled={!selectedChild}>
-              <Plus className="h-3.5 w-3.5" /> Input Pengukuran
-            </Button>
-          </div>
-        </div>
-
-        {/* ── Status Hero (if selected child has measurement) ── */}
-        {latestCfg && latestMeasurement && selectedChild && (
-          <div className={`rounded-2xl border p-5 flex items-center gap-4 ${latestCfg.bg} ${latestCfg.border}`}>
-            <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-white/60`}>
-              <LatestIcon className={`h-6 w-6 ${latestCfg.cls}`} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
-                <p className={`text-sm font-bold ${latestCfg.cls}`}>{latestCfg.label}</p>
-                {latestCfg.desc && (
-                  <span className={`text-[10px] ${latestCfg.cls} opacity-70`}>— {latestCfg.desc}</span>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {selectedChild.full_name} · Pengukuran terakhir: {formatDate(latestMeasurement.measurement_date)}
-              </p>
-            </div>
             <Button
               size="sm"
-              variant="outline"
-              className={`flex-shrink-0 border ${latestCfg.border} ${latestCfg.cls} bg-white/60 hover:bg-white/80 text-xs gap-1`}
-              onClick={() => handleEditClick(latestMeasurement)}
+              className="h-10 w-full gap-2 rounded-xl px-4 font-semibold shadow-sm sm:w-auto"
+              onClick={() => setShowForm(true)}
+              disabled={!selectedChild}
             >
-              <Pencil className="h-3 w-3" /> Edit
+              <Plus className="h-4 w-4" />
+              Input Pengukuran
             </Button>
           </div>
-        )}
-
-        {/* ── Children Grid ── */}
-        <div ref={gridRef} className="grid gap-3 md:grid-cols-2">
-          {children.length === 0 ? (
-            <div className="md:col-span-2 rounded-2xl border border-dashed border-border bg-card text-center py-16 px-8">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary mx-auto mb-4">
-                <Baby className="h-7 w-7 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-bold text-foreground mb-2">Belum Ada Data Anak</h3>
-              <p className="text-sm text-muted-foreground mb-5">
-                Tambahkan data anak untuk memulai pemantauan gizi
-              </p>
-              <Button onClick={() => navigate("/dashboard/profile")}>
-                <Plus className="h-4 w-4 mr-2" /> Tambah Data Anak
-              </Button>
-            </div>
-          ) : (
-            children.map((child) => {
-              const latestForChild = measurements.filter((m) => m.child_id === child.id)[0];
-              return (
-                <ChildCard
-                  key={child.id}
-                  child={child}
-                  latestMeasurement={latestForChild}
-                  isSelected={selectedChild?.id === child.id}
-                  onClick={() => setSelectedChild(child)}
-                />
-              );
-            })
-          )}
         </div>
 
-        {/* ── Measurement History Table ── */}
-        {measurements.length > 0 && (
-          <Card className="overflow-hidden">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-primary" /> Riwayat Pengukuran
-                  </CardTitle>
-                  <CardDescription>{selectedChild?.full_name} — {measurements.length} data</CardDescription>
-                </div>
-                <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => setShowForm(true)}>
-                  <Plus className="h-3 w-3" /> Tambah
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border bg-secondary/30">
-                      <th className="text-left py-2 px-4 text-xs font-semibold text-muted-foreground">Tanggal</th>
-                      <th className="text-left py-2 px-4 text-xs font-semibold text-muted-foreground">Berat</th>
-                      <th className="text-left py-2 px-4 text-xs font-semibold text-muted-foreground">Tinggi</th>
-                      <th className="text-left py-2 px-4 text-xs font-semibold text-muted-foreground">Z-Score</th>
-                      <th className="text-left py-2 px-4 text-xs font-semibold text-muted-foreground">Status</th>
-                      <th className="text-right py-2 px-4 text-xs font-semibold text-muted-foreground">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {measurements.slice(0, 8).map((m, i) => {
-                      const cfg = getClassCfg(m.classification);
-                      return (
-                        <tr key={m.id} className={`border-b border-border/60 last:border-0 ${i % 2 === 0 ? "" : "bg-secondary/10"}`}>
-                          <td className="py-2.5 px-4 text-xs text-muted-foreground">{formatDate(m.measurement_date)}</td>
-                          <td className="py-2.5 px-4 text-sm font-semibold text-foreground">{m.weight} kg</td>
-                          <td className="py-2.5 px-4 text-sm font-semibold text-foreground">{m.height} cm</td>
-                          <td className="py-2.5 px-4 text-sm font-semibold text-foreground">{m.z_score_weight ?? "-"}</td>
-                          <td className="py-2.5 px-4">
-                            <Badge variant="outline" className={`text-[10px] border ${cfg.bg} ${cfg.cls} ${cfg.border}`}>
-                              {cfg.label}
-                            </Badge>
-                          </td>
-                          <td className="py-2.5 px-4">
-                            <div className="flex gap-0.5 justify-end">
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleEditClick(m)}>
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleDeleteClick(m)}>
-                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              {measurements.length > 8 && (
-                <div className="px-4 py-3 border-t border-border/60 text-xs text-muted-foreground text-center">
-                  Dan {measurements.length - 8} data lainnya (lihat grafik di bawah)
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ── Growth Charts ── */}
-        {chartData.length > 0 && selectedChild && (
-          <Card className="overflow-hidden">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <TrendingUp className="h-4 w-4 text-primary" />
-                    Grafik Tumbuh Kembang — {selectedChild.full_name}
-                  </CardTitle>
-                  <CardDescription>Perkembangan berat & tinggi badan dengan referensi WHO</CardDescription>
-                </div>
-                {totalChartPages > 1 && (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline" size="sm" className="h-7 w-7 p-0"
-                      onClick={() => setChartPage((p) => Math.max(0, p - 1))}
-                      disabled={chartPage === 0}
-                    >
-                      <ChevronLeft className="h-3.5 w-3.5" />
-                    </Button>
-                    <span className="text-xs text-muted-foreground">{chartPage + 1}/{totalChartPages}</span>
-                    <Button
-                      variant="outline" size="sm" className="h-7 w-7 p-0"
-                      onClick={() => setChartPage((p) => Math.min(totalChartPages - 1, p + 1))}
-                      disabled={chartPage === totalChartPages - 1}
-                    >
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-6 lg:grid-cols-2">
-                {/* Weight */}
-                <div>
-                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                    <Scale className="h-3 w-3" /> Berat Badan (kg)
-                  </h4>
-                  <ResponsiveContainer width="100%" height={220}>
-                    <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis dataKey="month" tick={{ fill: "hsl(220,10%,46%)", fontSize: 11 }} />
-                      <YAxis tick={{ fill: "hsl(220,10%,46%)", fontSize: 11 }} />
-                      <Tooltip contentStyle={{ background: "hsl(0,0%,100%)", border: "1px solid hsl(220,15%,90%)", borderRadius: 8 }} />
-                      <Line type="monotone" dataKey="weight" stroke="hsl(152,55%,33%)" strokeWidth={2.5} dot={{ fill: "hsl(152,55%,33%)", r: 4 }} activeDot={{ r: 6 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-                {/* Height */}
-                <div>
-                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                    <Ruler className="h-3 w-3" /> Tinggi Badan (cm)
-                  </h4>
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis dataKey="month" tick={{ fill: "hsl(220,10%,46%)", fontSize: 11 }} />
-                      <YAxis tick={{ fill: "hsl(220,10%,46%)", fontSize: 11 }} />
-                      <Tooltip contentStyle={{ background: "hsl(0,0%,100%)", border: "1px solid hsl(220,15%,90%)", borderRadius: 8 }} />
-                      <Bar dataKey="height" fill="hsl(210,65%,50%)" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                {/* Z-Score */}
-                <div className="lg:col-span-2">
-                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                    <Activity className="h-3 w-3" /> Z-Score Berat vs Referensi WHO
-                  </h4>
-                  <ResponsiveContainer width="100%" height={240}>
-                    <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis dataKey="month" tick={{ fill: "hsl(220,10%,46%)", fontSize: 11 }} />
-                      <YAxis tick={{ fill: "hsl(220,10%,46%)", fontSize: 11 }} domain={[-4, 4]} />
-                      <Tooltip contentStyle={{ background: "hsl(0,0%,100%)", border: "1px solid hsl(220,15%,90%)", borderRadius: 8 }} />
-                      {whoReferenceLines.map((score) => (
-                        <ReferenceLine
-                          key={score} y={score}
-                          stroke={score === 0 ? "hsl(152,55%,33%)" : Math.abs(score) <= 2 ? "hsl(45,90%,50%)" : "hsl(0,70%,50%)"}
-                          strokeDasharray="4 3"
-                          strokeWidth={score === 0 || score === -2 ? 2 : 1}
-                          label={{ value: `${score} SD`, position: "right", fontSize: 9, fill: score === 0 ? "hsl(152,55%,33%)" : Math.abs(score) <= 2 ? "hsl(45,90%,50%)" : "hsl(0,70%,50%)" }}
-                        />
-                      ))}
-                      <Line type="monotone" dataKey="z_score" stroke="hsl(220,70%,50%)" strokeWidth={3} dot={{ fill: "hsl(220,70%,50%)", r: 5 }} activeDot={{ r: 7 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                  <div className="flex flex-wrap gap-4 mt-3 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-green-600" /><span>0 SD — Normal</span></div>
-                    <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-yellow-500" /><span>±2 SD — Perhatian</span></div>
-                    <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-red-500" /><span>±3 SD — Gizi Buruk/Lebih</span></div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ── Empty measurement state ── */}
-        {measurements.length === 0 && !loading && selectedChild && (
-          <div className="rounded-2xl border border-dashed border-border bg-card text-center py-14 px-8">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary mx-auto mb-4">
-              <Activity className="h-6 w-6 text-muted-foreground" />
+        {/* ── Empty Children State ── */}
+        {children.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-card px-4 py-12 text-center shadow-sm sm:rounded-3xl sm:px-8 sm:py-16">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary">
+              <Baby className="h-7 w-7 text-muted-foreground" />
             </div>
-            <p className="font-bold text-foreground mb-1">Belum Ada Data Pengukuran</p>
-            <p className="text-sm text-muted-foreground mb-5">
-              Input data berat dan tinggi badan anak untuk memulai pemantauan
+            <h3 className="mb-2 text-lg font-bold text-foreground">Belum Ada Data Anak</h3>
+            <p className="mb-5 text-sm text-muted-foreground">
+              Tambahkan data anak untuk memulai pemantauan gizi.
             </p>
-            <Button onClick={() => setShowForm(true)}>
-              <Plus className="h-4 w-4 mr-2" /> Input Pengukuran
+            <Button onClick={() => setShowAddChild(true)} className="rounded-xl">
+              <Plus className="mr-2 h-4 w-4" />
+              Tambah Data Anak
             </Button>
           </div>
+        ) : (
+          <>
+            {/* ── Master Detail Area ── */}
+            <div ref={gridRef} className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.25fr)]">
+
+              {/* Daftar Anak */}
+              <Card className="overflow-hidden rounded-2xl border-border/80 shadow-sm sm:rounded-3xl">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base font-bold">Daftar Anak</CardTitle>
+                  <CardDescription className="text-xs">
+                    Pilih anak untuk melihat detail dan riwayat pengukuran.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {children.map((child) => {
+                    const latestForChild = latestMeasurementsByChild[child.id];
+
+                    return (
+                      <ChildCard
+                        key={child.id}
+                        child={child}
+                        latestMeasurement={latestForChild}
+                        isSelected={selectedChild?.id === child.id}
+                        onClick={() => setSelectedChild(child)}
+                      />
+                    );
+                  })}
+                </CardContent>
+              </Card>
+
+              {/* Ringkasan Anak Terpilih */}
+              <Card className="overflow-hidden rounded-2xl border-border/80 shadow-sm sm:rounded-3xl">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-base font-bold">
+                    Ringkasan {selectedChild?.full_name || "Anak"}
+                  </CardTitle>
+                </CardHeader>
+
+                <CardContent className="space-y-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-green-200 bg-green-100 text-base font-bold text-green-800 sm:h-16 sm:w-16 sm:text-lg">
+                        {selectedChild ? getInitial(selectedChild.full_name) : "A"}
+                      </div>
+
+                      <div>
+                        <h3 className="text-lg font-bold leading-tight text-foreground sm:text-xl">
+                          {selectedChild?.full_name || "-"}
+                        </h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {selectedChild?.age_months ?? "-"} bulan
+                          {selectedChild?.age_months ? ` (${Math.floor(selectedChild.age_months / 12)} tahun)` : ""}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {getGenderLabel(selectedChild?.gender ?? null)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-start gap-2 sm:items-end">
+                      {latestCfg ? (
+                        <>
+                          <Badge
+                            variant="outline"
+                            className={`h-8 gap-1.5 rounded-full border px-4 text-xs font-semibold ${latestCfg.bg} ${latestCfg.cls} ${latestCfg.border}`}
+                          >
+                            <LatestIcon className="h-3.5 w-3.5" />
+                            {latestCfg.label}
+                          </Badge>
+                          {latestCfg.desc && (
+                            <p className="text-xs text-muted-foreground">{latestCfg.desc}</p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <Badge
+                            variant="outline"
+                            className="h-8 rounded-full border-border bg-secondary px-4 text-xs text-muted-foreground"
+                          >
+                          Belum ada data
+                          </Badge>
+                          <p className="text-xs text-muted-foreground">Belum ada pengukuran</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 min-[420px]:grid-cols-2 2xl:grid-cols-4">
+                    {[
+                      {
+                        icon: Scale,
+                        label: "Berat",
+                        value: latestMeasurement ? `${latestMeasurement.weight} kg` : "-",
+                      },
+                      {
+                        icon: Ruler,
+                        label: "Tinggi",
+                        value: latestMeasurement ? `${latestMeasurement.height} cm` : "-",
+                      },
+                      {
+                        icon: Activity,
+                        label: "Z-Score",
+                        value: latestMeasurement?.z_score_weight !== null && latestMeasurement?.z_score_weight !== undefined
+                          ? latestMeasurement.z_score_weight
+                          : "-",
+                      },
+                      {
+                        icon: Calendar,
+                        label: "Pengukuran terakhir",
+                        value: latestMeasurement ? formatDate(latestMeasurement.measurement_date) : "-",
+                      },
+                    ].map(({ icon: Icon, label, value }) => (
+                      <div
+                        key={label}
+                        className="rounded-2xl border border-border/80 bg-background p-3 shadow-sm sm:p-4"
+                      >
+                        <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-green-50 text-primary">
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                        <p className="mt-1 text-lg font-bold text-foreground sm:text-xl">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* ── Measurement History Table ── */}
+            {measurements.length > 0 && (
+              <Card className="overflow-hidden rounded-2xl border-border/80 shadow-sm sm:rounded-3xl">
+                <CardHeader className="pb-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-base font-bold">
+                        <Activity className="h-4 w-4 text-primary" />
+                        Riwayat Pengukuran
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        {selectedChild?.full_name} — {measurements.length} data
+                      </CardDescription>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 gap-1.5 rounded-xl px-4 text-xs font-semibold"
+                      onClick={() => setShowForm(true)}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Tambah
+                    </Button>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[680px] text-sm">
+                      <thead>
+                        <tr className="border-y border-border bg-secondary/30">
+                          <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground">Tanggal</th>
+                          <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground">Berat (kg)</th>
+                          <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground">Tinggi (cm)</th>
+                          <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground">Z-Score</th>
+                          <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground">Status</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground">Aksi</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {measurements.slice(0, 8).map((m) => {
+                          const cfg = getClassCfg(m.classification);
+                          return (
+                            <tr
+                              key={m.id}
+                              className="border-b border-border/60 last:border-0 hover:bg-secondary/20"
+                            >
+                              <td className="px-5 py-4 text-xs text-muted-foreground">
+                                {formatDate(m.measurement_date)}
+                              </td>
+                              <td className="px-5 py-4 text-sm font-bold text-foreground">
+                                {m.weight} kg
+                              </td>
+                              <td className="px-5 py-4 text-sm font-bold text-foreground">
+                                {m.height} cm
+                              </td>
+                              <td className="px-5 py-4 text-sm font-bold text-foreground">
+                                {m.z_score_weight ?? "-"}
+                              </td>
+                              <td className="px-5 py-4">
+                                <Badge
+                                  variant="outline"
+                                  className={`rounded-full border px-3 text-[10px] ${cfg.bg} ${cfg.cls} ${cfg.border}`}
+                                >
+                                  {cfg.label}
+                                </Badge>
+                              </td>
+                              <td className="px-5 py-4">
+                                <div className="flex justify-end gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 rounded-lg p-0"
+                                    onClick={() => handleEditClick(m)}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 rounded-lg p-0"
+                                    onClick={() => handleDeleteClick(m)}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {measurements.length > 8 && (
+                    <div className="border-t border-border/60 px-5 py-3 text-center text-xs text-muted-foreground">
+                      Dan {measurements.length - 8} data lainnya.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* ── Growth Charts ── */}
+            {chartData.length > 0 && selectedChild && (
+              <Card className="overflow-hidden rounded-2xl border-border/80 shadow-sm sm:rounded-3xl">
+                <CardHeader>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-base font-bold">
+                        <TrendingUp className="h-4 w-4 text-primary" />
+                        Grafik Tumbuh Kembang — {selectedChild.full_name}
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Perkembangan berat & tinggi badan dengan referensi WHO
+                      </CardDescription>
+                    </div>
+
+                    {totalChartPages > 1 && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline" size="sm" className="h-8 w-8 rounded-lg p-0"
+                          onClick={() => setChartPage((p) => Math.max(0, p - 1))}
+                          disabled={chartPage === 0}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <span className="text-xs text-muted-foreground">{chartPage + 1}/{totalChartPages}</span>
+                        <Button
+                          variant="outline" size="sm" className="h-8 w-8 rounded-lg p-0"
+                          onClick={() => setChartPage((p) => Math.min(totalChartPages - 1, p + 1))}
+                          disabled={chartPage === totalChartPages - 1}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardHeader>
+
+                <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
+                  <div className="grid gap-4 xl:grid-cols-2 xl:gap-6">
+                    <div className="rounded-2xl border border-border/70 bg-background p-3 sm:p-4">
+                      <div className="mb-3 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                        <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          <Scale className="h-3.5 w-3.5" />
+                          Berat Badan (kg)
+                        </h4>
+                        <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
+                          <span className="flex items-center gap-1.5">
+                            <span className="h-1.5 w-4 rounded-full bg-primary" />
+                            Pengukuran
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="h-1.5 w-4 rounded-full border-t border-dashed border-muted-foreground" />
+                            Referensi WHO
+                          </span>
+                        </div>
+                      </div>
+
+                      <ResponsiveContainer width="100%" height={220}>
+                        <LineChart data={chartData}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                          <XAxis dataKey="month" tick={{ fill: "hsl(220,10%,46%)", fontSize: 11 }} />
+                          <YAxis tick={{ fill: "hsl(220,10%,46%)", fontSize: 11 }} />
+                          <Tooltip contentStyle={{ background: "hsl(0,0%,100%)", border: "1px solid hsl(220,15%,90%)", borderRadius: 12 }} />
+                          <Line type="monotone" dataKey="weight" stroke="hsl(152,55%,33%)" strokeWidth={2.5} dot={{ fill: "hsl(152,55%,33%)", r: 4 }} activeDot={{ r: 6 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div className="rounded-2xl border border-border/70 bg-background p-3 sm:p-4">
+                      <div className="mb-3 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                        <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          <Ruler className="h-3.5 w-3.5" />
+                          Tinggi Badan (cm)
+                        </h4>
+                        <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
+                          <span className="flex items-center gap-1.5">
+                            <span className="h-1.5 w-4 rounded-full bg-primary" />
+                            Pengukuran
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="h-1.5 w-4 rounded-full border-t border-dashed border-muted-foreground" />
+                            Referensi WHO
+                          </span>
+                        </div>
+                      </div>
+
+                      <ResponsiveContainer width="100%" height={220}>
+                        <LineChart data={chartData}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                          <XAxis dataKey="month" tick={{ fill: "hsl(220,10%,46%)", fontSize: 11 }} />
+                          <YAxis tick={{ fill: "hsl(220,10%,46%)", fontSize: 11 }} />
+                          <Tooltip contentStyle={{ background: "hsl(0,0%,100%)", border: "1px solid hsl(220,15%,90%)", borderRadius: 12 }} />
+                          <Line type="monotone" dataKey="height" stroke="hsl(152,55%,33%)" strokeWidth={2.5} dot={{ fill: "hsl(152,55%,33%)", r: 4 }} activeDot={{ r: 6 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* ── Empty measurement state ── */}
+            {measurements.length === 0 && !loading && selectedChild && (
+              <div className="rounded-3xl border border-dashed border-border bg-card px-8 py-14 text-center shadow-sm">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary">
+                  <Activity className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <p className="mb-1 font-bold text-foreground">Belum Ada Data Pengukuran</p>
+                <p className="mb-5 text-sm text-muted-foreground">
+                  Input data berat dan tinggi badan anak untuk memulai pemantauan.
+                </p>
+                <Button onClick={() => setShowForm(true)} className="rounded-xl">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Input Pengukuran
+                </Button>
+              </div>
+            )}
+          </>
         )}
 
         {/* ── Add/Edit Measurement Dialog ── */}
-        <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); setShowForm(open); }}>
-          <DialogContent className="max-w-md">
+        <Dialog open={showForm} onOpenChange={(open: boolean) => { if (!open) resetForm(); setShowForm(open); }}>
+          <DialogContent className="w-[calc(100vw-2rem)] max-w-md rounded-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Activity className="h-4 w-4 text-primary" />
@@ -686,7 +863,7 @@ const PemantauanGizi = () => {
                 <Input type="date" value={formDate} onChange={(e) => { setFormDate(e.target.value); setFormErrors((p) => ({ ...p, date: undefined })); }} max={new Date().toISOString().split("T")[0]} />
                 {formErrors.date && <p className="text-xs text-destructive mt-1">{formErrors.date}</p>}
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label>Berat Badan (kg)</Label>
                   <Input type="number" value={formWeight} onChange={(e) => { setFormWeight(e.target.value); setFormErrors((p) => ({ ...p, weight: undefined })); }} placeholder="0.0" step="0.1" min="0.1" max="100" />
@@ -713,7 +890,7 @@ const PemantauanGizi = () => {
 
         {/* ── Delete Confirm ── */}
         <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-          <DialogContent className="max-w-sm">
+          <DialogContent className="w-[calc(100vw-2rem)] max-w-sm rounded-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <AlertCircle className="h-5 w-5 text-destructive" /> Hapus Pengukuran?
@@ -722,7 +899,7 @@ const PemantauanGizi = () => {
             <p className="text-sm text-muted-foreground">
               Data pengukuran tanggal <strong>{deletingMeasurement && formatDate(deletingMeasurement.measurement_date)}</strong> akan dihapus permanen. Lanjutkan?
             </p>
-            <div className="flex gap-2 mt-2">
+            <div className="mt-2 grid gap-2 sm:flex">
               <Button variant="outline" className="flex-1" onClick={() => setShowDeleteConfirm(false)}>Batal</Button>
               <Button variant="destructive" className="flex-1" onClick={handleConfirmDelete}>Hapus</Button>
             </div>
@@ -730,8 +907,8 @@ const PemantauanGizi = () => {
         </Dialog>
 
         {/* ── Add Child Dialog ── */}
-        <Dialog open={showAddChild} onOpenChange={(open) => { if (!open) { setChildFormName(""); setChildFormDob(""); setChildFormGender("male"); setChildFormErrors({}); } setShowAddChild(open); }}>
-          <DialogContent className="max-w-md">
+        <Dialog open={showAddChild} onOpenChange={(open: boolean) => { if (!open) { setChildFormName(""); setChildFormDob(""); setChildFormGender("male"); setChildFormErrors({}); } setShowAddChild(open); }}>
+          <DialogContent className="w-[calc(100vw-2rem)] max-w-md rounded-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Baby className="h-5 w-5 text-primary" /> Tambah Data Anak
