@@ -225,7 +225,7 @@ export default function VendorDashboard() {
           />
           <KpiCard
             icon={BarChart3}
-            label="Status Settlement"
+            label="Status Pencairan"
             value={orders.length > 0 ? "Aktif" : "-"}
             subtitle="Periode berjalan"
             variant="purple"
@@ -319,7 +319,7 @@ export default function VendorDashboard() {
             <div className="space-y-2">
               {[
                 {
-                  label: "Scan & Tukar Voucher",
+                  label: "Pindai & Tukar Voucher",
                   desc: "Verifikasi voucher penerima",
                   icon: QrCode,
                   href: "/dashboard/penukaran-voucher",
@@ -339,7 +339,7 @@ export default function VendorDashboard() {
                   primary: false,
                 },
                 {
-                  label: "Riwayat Settlement",
+                  label: "Riwayat Pencairan",
                   desc: "Riwayat pencairan dana",
                   icon: BarChart3,
                   href: "/dashboard/settlement",

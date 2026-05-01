@@ -209,7 +209,7 @@ const KelolaProduk = () => {
         <KpiCardGrid columns={3}>
           <KpiCard icon={ShoppingBag} label="Total Produk" value={products.length.toString()} variant="indigo" />
           <KpiCard icon={CheckCircle} label="Disetujui" value={activeCount.toString()} variant="green" />
-          <KpiCard icon={Clock} label="Menunggu Review" value={pendingCount.toString()} variant="amber" />
+          <KpiCard icon={Clock} label="Menunggu Tinjauan" value={pendingCount.toString()} variant="amber" />
         </KpiCardGrid>
 
         {/* Toolbar */}

@@ -147,7 +147,7 @@ const VendorSettlement = () => {
   if (loading) {
     return (
       <DashboardLayout
-        title="Riwayat Settlement"
+        title="Riwayat Pencairan"
         subtitle="Riwayat pencairan dana voucher yang telah ditukarkan."
       >
         <div className="space-y-4">
@@ -160,7 +160,7 @@ const VendorSettlement = () => {
   if (error) {
     return (
       <DashboardLayout
-        title="Riwayat Settlement"
+        title="Riwayat Pencairan"
         subtitle="Riwayat pencairan dana voucher yang telah ditukarkan."
       >
         <ErrorState message={error} onRetry={refetch} />
@@ -170,7 +170,7 @@ const VendorSettlement = () => {
 
   return (
     <DashboardLayout
-      title="Riwayat Settlement"
+      title="Riwayat Pencairan"
       subtitle="Riwayat pencairan dana voucher yang telah ditukarkan."
     >
       <div className="space-y-5">
@@ -215,7 +215,7 @@ const VendorSettlement = () => {
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
             {[
               {
-                label: "Pertumbuhan MoM",
+                label: "Pertumbuhan Bulanan",
                 value: `${report.trends.month_over_month_growth > 0 ? "+" : ""}${report.trends.month_over_month_growth.toFixed(1)}%`,
                 icon: TrendingUp,
                 positive: report.trends.month_over_month_growth >= 0,
@@ -297,7 +297,7 @@ const VendorSettlement = () => {
 
         {/* Settlement List */}
         <div>
-          <h2 className="text-sm font-semibold text-foreground mb-3">Riwayat Settlement</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-3">Riwayat Pencairan</h2>
           <div className="rounded-2xl border border-border bg-card overflow-hidden">
             {settlements.length === 0 ? (
               <div className="text-center py-12">
