@@ -3,6 +3,7 @@ Order Service
 Business logic for order processing with atomic transactions
 """
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from typing import Optional, List
 from decimal import Decimal
 import logging
@@ -10,7 +11,7 @@ from uuid import UUID
 
 from app.models.product import Order, OrderItem, OrderStatusEnum, Product
 from app.models.donation import Voucher, VoucherRedemption, VoucherStatusEnum
-from app.models.user import VendorProfile
+from app.models.user import BeneficiaryProfile, UserProfile, VendorProfile
 from app.schemas.order import OrderCreate, OrderStatusUpdate, OrderQueryParams
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,31 @@ class OrderService:
         if isinstance(value, UUID):
             return value
         return UUID(str(value))
+
+    @staticmethod
+    def _apply_search(query, search: Optional[str]):
+        if not search:
+            return query
+
+        search_term = search.strip()
+        if not search_term:
+            return query
+
+        like_term = f"%{search_term}%"
+        return query.filter(
+            or_(
+                Order.notes.ilike(like_term),
+                Order.beneficiary_profile.has(
+                    BeneficiaryProfile.user_profile.has(
+                        or_(
+                            UserProfile.full_name.ilike(like_term),
+                            UserProfile.phone.ilike(like_term),
+                        )
+                    )
+                ),
+                Order.vendor_profile.has(VendorProfile.store_name.ilike(like_term)),
+            )
+        )
 
     @staticmethod
     def create_order(db: Session, beneficiary_id: str, data: OrderCreate) -> Order:
@@ -145,6 +171,7 @@ class OrderService:
 
         if params.status:
             query = query.filter(Order.status == params.status)
+        query = OrderService._apply_search(query, params.search)
 
         return query.count()
 
@@ -162,6 +189,7 @@ class OrderService:
 
         if params.status:
             query = query.filter(Order.status == params.status)
+        query = OrderService._apply_search(query, params.search)
 
         return query.order_by(Order.created_at.desc()).all()
 

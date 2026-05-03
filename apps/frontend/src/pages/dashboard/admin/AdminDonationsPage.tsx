@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { formatIDR } from "@/lib/format";
 import { apiFetch } from "@/services/api";
 import { formatDateTime, statusClass, shortId } from "./adminUtils";
@@ -32,31 +33,58 @@ type DonationListResponse = {
 export default function AdminDonationsPage() {
   const [items, setItems] = useState<DonationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const queryString = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    params.set("page_size", "50");
+    if (searchQuery.trim()) params.set("search", searchQuery.trim());
+    return params.toString();
+  }, [searchQuery]);
 
   const loadDonations = useCallback(async () => {
     try {
       setLoading(true);
-      const data = (await apiFetch("/admin/donations?page=1&page_size=50")) as DonationListResponse;
+      const data = (await apiFetch(`/admin/donations?${queryString}`)) as DonationListResponse;
       setItems(data.items || []);
     } catch (err: any) {
       toast.error(err?.message || "Gagal memuat donasi admin");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [queryString]);
 
   useEffect(() => {
     void loadDonations();
   }, [loadDonations]);
+
+  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSearchQuery(searchInput.trim());
+  };
 
   return (
     <DashboardLayout title="Kelola Donasi" subtitle="Lihat transaksi donasi dan status alokasinya.">
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <p className="text-sm text-muted-foreground">Daftar donasi yang tersedia lewat endpoint admin/donations.</p>
-          <Button variant="outline" onClick={() => void loadDonations()} disabled={loading}>
-            Refresh
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <form className="flex min-w-[280px] flex-1 items-center gap-2" onSubmit={handleSearchSubmit}>
+              <Input
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="Cari donor, penerima, atau ID transaksi..."
+              />
+              <Button type="submit" variant="outline" disabled={loading}>
+                Search
+              </Button>
+            </form>
+            <Button variant="outline" onClick={() => void loadDonations()} disabled={loading}>
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {loading ? (

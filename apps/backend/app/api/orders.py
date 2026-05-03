@@ -119,11 +119,12 @@ async def list_orders(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     status_filter: Optional[str] = Query(None, alias="status"),
+    search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     """List orders with role-based filtering"""
-    params = OrderQueryParams(page=page, page_size=page_size, status=status_filter)
+    params = OrderQueryParams(page=page, page_size=page_size, status=status_filter, search=search)
     vendor_id = None
     if current_user.role == "vendor":
         from app.models.user import VendorProfile

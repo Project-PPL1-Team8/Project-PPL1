@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { formatIDR } from "@/lib/format";
 import { apiFetch } from "@/services/api";
 import { formatDateTime, statusClass, shortId } from "./adminUtils";
@@ -28,31 +29,58 @@ type OrderListResponse = {
 export default function AdminOrdersPage() {
   const [items, setItems] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const queryString = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    params.set("page_size", "50");
+    if (searchQuery.trim()) params.set("search", searchQuery.trim());
+    return params.toString();
+  }, [searchQuery]);
 
   const loadOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const data = (await apiFetch("/orders?page=1&page_size=50")) as OrderListResponse;
+      const data = (await apiFetch(`/orders?${queryString}`)) as OrderListResponse;
       setItems(data.items || []);
     } catch (err: any) {
       toast.error(err?.message || "Gagal memuat order");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [queryString]);
 
   useEffect(() => {
     void loadOrders();
   }, [loadOrders]);
+
+  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSearchQuery(searchInput.trim());
+  };
 
   return (
     <DashboardLayout title="Kelola Pesanan" subtitle="Lihat pesanan yang tersedia untuk role admin.">
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <p className="text-sm text-muted-foreground">Route ini memakai endpoint order yang sudah mendukung role admin.</p>
-          <Button variant="outline" onClick={() => void loadOrders()} disabled={loading}>
-            Refresh
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <form className="flex min-w-[280px] flex-1 items-center gap-2" onSubmit={handleSearchSubmit}>
+              <Input
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="Cari user atau toko..."
+              />
+              <Button type="submit" variant="outline" disabled={loading}>
+                Search
+              </Button>
+            </form>
+            <Button variant="outline" onClick={() => void loadOrders()} disabled={loading}>
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {loading ? (

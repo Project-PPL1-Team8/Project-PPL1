@@ -24,7 +24,8 @@ import { apiFetch } from "@/services/api";
 import { toast } from "sonner";
 
 interface AdminStats {
-  users: { total: number; donors: number; beneficiaries: number; vendors: number };
+  users: { total: number; donors: number; beneficiaries: number; vendors: number; pending_beneficiaries: number; pending_vendors: number };
+  products: { total: number; pending: number; approved: number; rejected: number };
   vouchers: { active_count: number; total_balance: number };
   orders: { total: number; completed: number };
   redemptions: { total_count: number; total_amount: number };

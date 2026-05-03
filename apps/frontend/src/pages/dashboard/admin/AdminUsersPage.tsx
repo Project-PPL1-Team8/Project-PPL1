@@ -222,23 +222,27 @@ export default function AdminUsersPage() {
                       {shortId(item.user_id)} · dibuat {formatDateTime(item.created_at)}
                     </p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => void updateApproval(item.user_id, "approved")}
-                      disabled={mutatingId === item.user_id || item.approval_status === "approved"}
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => void updateApproval(item.user_id, "rejected")}
-                      disabled={mutatingId === item.user_id || item.approval_status === "rejected"}
-                    >
-                      Reject
-                    </Button>
-                  </div>
+                  {item.role === "beneficiary" || item.role === "vendor" ? (
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => void updateApproval(item.user_id, "approved")}
+                        disabled={mutatingId === item.user_id || item.approval_status === "approved"}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void updateApproval(item.user_id, "rejected")}
+                        disabled={mutatingId === item.user_id || item.approval_status === "rejected"}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">Akun ini tidak memiliki workflow approval.</div>
+                  )}
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2 text-sm">
