@@ -62,85 +62,20 @@ class MidtransService:
         midtrans_transaction_id: str = None
     ) -> dict:
         logger.info(f"Starting Midtrans payment processing for donation {donation_id}")
-        
+
+        from app.services.donation_allocation_service import DonationAllocationService
+
         try:
-            donation_uuid = UUID(str(donation_id)) if not isinstance(donation_id, UUID) else donation_id
-            donation = db.query(Donation).filter(Donation.id == donation_uuid).first()
+            result = DonationAllocationService.process_successful_donation(
+                db=db,
+                donation_id=donation_id,
+                transaction_id=midtrans_transaction_id,
+            )
+            logger.info(f"Midtrans payment processed successfully for donation {donation_id}")
+            return result
         except Exception as e:
-            logger.error(f"Error querying donation: {str(e)}")
-            raise ValueError(f"Invalid donation ID format: {donation_id}")
-        
-        if not donation:
-            logger.error(f"Donation {donation_id} not found in database")
-            raise ValueError(f"Donation {donation_id} not found")
-        
-        if donation.status != DonationStatusEnum.pending:
-            logger.error(f"Donation status is {donation.status.value}, expected 'pending'")
-            raise ValueError(f"Donation status is {donation.status.value}, must be 'pending'")
-        
-        donation.status = DonationStatusEnum.success
-        donation.midtrans_transaction_id = midtrans_transaction_id
-        logger.info("Updated donation status to success")
-        
-        voucher_created = False
-        assigned_beneficiary_id = donation.recipient_id
-        
-        if not assigned_beneficiary_id:
-            logger.info("No recipient assigned, finding best beneficiary...")
-            assigned_beneficiary_id = MidtransService._find_best_beneficiary(db)
-            if assigned_beneficiary_id:
-                donation.recipient_id = assigned_beneficiary_id
-                logger.info(f"Auto-allocated donation {donation_id} to beneficiary {assigned_beneficiary_id}")
-            else:
-                logger.warning("No beneficiary found for auto-allocation")
-        
-        if assigned_beneficiary_id:
-            try:
-                MidtransService._create_voucher(db, donation)
-                voucher_created = True
-                logger.info("Voucher created successfully")
-            except Exception as e:
-                logger.error(f"Failed to create voucher: {str(e)}")
-                voucher_created = False
-        else:
-            logger.info("No beneficiary assigned, skipping voucher creation")
-        
-        try:
-            MidtransService._update_donor_metrics(db, donation.donor_id, donation.amount)
-            logger.info("Donor metrics updated")
-        except Exception as e:
-            logger.error(f"Failed to update donor metrics: {str(e)}")
+            logger.error(f"Error processing Midtrans payment for donation {donation_id}: {str(e)}")
             raise
-        
-        try:
-            db.commit()
-            db.refresh(donation)
-            logger.info("Database committed successfully")
-        except Exception as e:
-            logger.error(f"Database commit failed: {str(e)}")
-            raise
-        
-        logger.info(f"Midtrans payment processed successfully for donation {donation_id}")
-        
-        try:
-            impact = MidtransService._calculate_impact(donation)
-        except Exception as e:
-            logger.error(f"Error calculating impact: {str(e)}")
-            impact = {
-                "children_helped": 0,
-                "months_of_support": 1,
-                "days_of_support": 0,
-                "message": "Terima kasih atas kontribusi Anda!"
-            }
-        
-        return {
-            "success": True,
-            "donation_id": str(donation.id),
-            "amount": float(donation.amount) if donation.amount else 0,
-            "transaction_id": donation.midtrans_transaction_id,
-            "voucher_created": voucher_created,
-            "impact": impact
-        }
     
     @staticmethod
     def _create_voucher(db: Session, donation: Donation) -> Voucher:

@@ -60,7 +60,11 @@ class DonationAllocationService:
         return UUID(str(value))
 
     @staticmethod
-    def process_successful_donation(db: Session, donation_id: str | UUID) -> dict:
+    def process_successful_donation(
+        db: Session,
+        donation_id: str | UUID,
+        transaction_id: Optional[str] = None,
+    ) -> dict:
         donation_uuid = DonationAllocationService._to_uuid(donation_id)
         if donation_uuid is None:
             raise ValueError("Donation ID is required")
@@ -75,7 +79,7 @@ class DonationAllocationService:
             )
 
         donation.status = DonationStatusEnum.success
-        donation.midtrans_transaction_id = f"ALLOC-{uuid.uuid4().hex[:12].upper()}"
+        donation.midtrans_transaction_id = transaction_id or f"ALLOC-{uuid.uuid4().hex[:12].upper()}"
 
         allocated_at = datetime.utcnow()
         candidates = DonationAllocationService._get_eligible_candidates(

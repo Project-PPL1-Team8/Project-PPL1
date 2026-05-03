@@ -149,9 +149,7 @@ class SubscriptionService:
         
         Creates a new donation and processes payment
         """
-        from app.services.midtrans_service import MidtransService
         from app.services.donation_allocation_service import DonationAllocationService
-        from app.services.midtrans_service import MidtransService
         
         logger.info(f"[BILLING] Processing billing for subscription {subscription.id}")
         
@@ -172,17 +170,12 @@ class SubscriptionService:
             db.add(donation)
             db.flush()  # Get ID without committing
             
-            # Process payment via Midtrans
-            result = MidtransService.process_payment_success(
-            # Process payment
+            # Mark the recurring charge as successful and allocate it with the same
+            # algorithm used for Midtrans webhook notifications.
             result = DonationAllocationService.process_successful_donation(
                 db=db,
-                donation_id=str(donation.id)
-            )
-            # Process payment via Midtrans
-            result = MidtransService.process_payment_success(
-                db=db,
-                donation_id=str(donation.id)
+                donation_id=str(donation.id),
+                transaction_id=f"SUBSCRIPTION-{donation.id}",
             )
             
             if result.get("success"):
@@ -207,23 +200,6 @@ class SubscriptionService:
                     "success": True,
                     "donation_id": str(donation.id),
                     "transaction_id": result.get("transaction_id")
-                }
-            else:
-                # Payment failed
-                billing = BillingHistory(
-                    subscription_id=subscription.id,
-                    amount=subscription.amount,
-                    status=BillingStatusEnum.failed,
-                    payment_method=subscription.payment_method,
-                    billing_date=date.today()
-                )
-                db.add(billing)
-                db.commit()
-                
-                logger.warning(f"[BILLING] Payment failed for subscription {subscription.id}")
-                return {
-                    "success": False,
-                    "error": "Payment processing failed"
                 }
                 
         except Exception as e:
